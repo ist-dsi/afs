@@ -5,13 +5,20 @@ if [[ ! $(vagrant status | grep running) ]]; then
 fi
 
 vagrant ssh <<"EOF" # These quotes are VERY important. Without them the line EXIT= wont work
+# We want to ensure the docker runs with root, so that we can leverage the folders /root/.ivy2 and /root/.sbt
+sudo su
+
 # With quiet it won't throw an error in the module is already removed
-sudo modprobe --remove --quiet openafs
+#modprobe --remove --quiet openafs
+rmmod openafs
 
 # Remove any previously existing containers
-# docker rm -f `docker ps -qa | xargs`
+docker rm -f `docker ps -qa | xargs`
 
 cd /vagrant
+sbt test:compile
+
+cd /vagrant/docker-afs
 
 # Build the containers
 docker-compose build

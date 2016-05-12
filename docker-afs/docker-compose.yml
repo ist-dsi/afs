@@ -36,6 +36,13 @@ services:
     depends_on:
       - kdc-kadmin
       - afs
+    volumes:
+      - ../:/tmp/afs/
+      # This is needed otherwise there won't be enough entropy to install the java certificates
+      - /dev/urandom:/dev/random
+      # This bootstraps running sbt inside the container
+      - /root/.sbt:/root/.sbt
+      - /root/.ivy2:/root/.ivy2
 
 # NOTE:
 #  "env_file: kerberos.env" is optional.

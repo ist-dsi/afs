@@ -18,14 +18,11 @@ echo ""
 
 source `dirname $0`/configureAFSClient.sh
 
-
-
-# Your application
-
-# You can use the `kadminCommand` function to perform kadmin commands. Example:
-# kadminCommand "get_principal yourprincipal@$REALM"
-
-
+echo "==================================================================================="
+echo "==== Tests ========================================================================"
+echo "==================================================================================="
+cd /tmp/afs
+sbt test
 
 # Be sure to stop the openafs-client otherwise the afs kernel module will not be unloaded and you
 # will have problems stopping the containers.

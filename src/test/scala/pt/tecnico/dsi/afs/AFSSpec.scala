@@ -5,8 +5,6 @@ import java.io.File
 import squants.information.InformationConversions._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FlatSpec, Matchers}
-import AFS.{ErrorCase, InvalidDirectory, UnknownUserName}
-import pt.tecnico.dsi.afs.afs.AFS
 import squants.information.{Gigabytes, Information, Kilobytes}
 import work.martins.simon.expect.fluent.Expect
 
@@ -19,6 +17,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
   *
   */
 class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
+  val afs = new AFS()
   val path = "/afs/.example.com/"
   val randomFile = "random.data"
   val nonExistingPath = "/afs/aaaa"
@@ -47,7 +46,7 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
   }*/
 
   //region <PTS commands>
-
+/*
 
   "AFS listquota" should "return (name, quota, used) when the directory exists" in {
     val e = AFS.listquota(new File(path))
@@ -101,12 +100,9 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
     }
   }
 
-
-
-  "AFS setquota" should "after increasing a volume quota it should return the same " +
-    "volume name and the new set quota" in {
+  "AFS setquota" should "after increasing a volume quota it should return the same volume name and the new set quota" in {
     var quotaBefore = Kilobytes(0)
-    AFS.listquota(new File(path)).run().futureValue match {
+    afs.listquota(new File(path)).run().futureValue match {
       case Right((outputVolumeName, quota, used)) => {
         quotaBefore = quota
       }
@@ -114,9 +110,9 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
         assert(false)
       }
     }
-    val res = AFS.setQuota(new File(path), quotaBefore + 2.kilobytes).run().futureValue
+    val res = afs.setQuota(new File(path), quotaBefore + 2.kilobytes).run().futureValue
     assertResult(Right(true))(res)
-    AFS.listquota(new File(path)).run().futureValue match {
+    afs.listquota(new File(path)).run().futureValue match {
       case Right((outputVolumeName, quota, used)) => {
         assertResult(quotaBefore + 2.kilobytes)(quota)
       }
@@ -290,6 +286,7 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
       }
     }
   }
+*/
 
   /*
 

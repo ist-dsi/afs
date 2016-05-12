@@ -1,4 +1,4 @@
-package pt.tecnico.dsi.afs.afs
+package pt.tecnico.dsi.afs
 
 import com.typesafe.config.{Config, ConfigFactory, ConfigValueType}
 import work.martins.simon.expect.StringUtils.splitBySpaces
@@ -39,31 +39,7 @@ class Settings(config: Config = ConfigFactory.load()) {
   }
   import afsConfig._
 
-  val realm = getString("realm")
-
-  val passwordAuthentication = getBoolean("password-authentication")
-
-  val authenticatingPrincipal = getString("principal")
-  if (passwordAuthentication && authenticatingPrincipal.isEmpty)
-    throw new IllegalArgumentException("When performing password authentication principal cannot be empty.")
-  val authenticatingPrincipalPassword = getString("password")
-  if (passwordAuthentication && authenticatingPrincipalPassword.isEmpty)
-    throw new IllegalArgumentException("When performing password authentication password cannot be empty.")
-
-  val command: Seq[String] = {
-    val configName = "command"
-    val commandArray: Seq[String] = getValue(configName).valueType() match {
-      case ConfigValueType.STRING => splitBySpaces(getString(configName))
-      case ConfigValueType.LIST => getStringList(configName).asScala
-      case _ => throw new IllegalArgumentException(s"$configName can only be String or Array of String")
-    }
-    require(commandArray.nonEmpty, s"$configName cannot be empty.")
-    commandArray.map(_.replaceAllLiterally("$FULL_PRINCIPAL", s"$authenticatingPrincipal@$realm"))
-  }
-
-  val keytabsLocation = getString("keytabs-location")
-
-  val kadminPrompt = getString("prompt").r
+  val cell = getString("cell")
 
   override def toString: String = afsConfig.root.render
 }

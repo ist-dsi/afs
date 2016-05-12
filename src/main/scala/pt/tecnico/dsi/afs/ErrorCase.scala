@@ -1,4 +1,4 @@
-package pt.tecnico.dsi.afs.afs
+package pt.tecnico.dsi.afs
 
 trait ErrorCase
 

@@ -24,10 +24,10 @@ scalacOptions ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "work.martins.simon" %% "scala-expect" % "1.7.5",
+  "work.martins.simon" %% "scala-expect" % "1.11.1",
   //Logging
   "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
-  "ch.qos.logback" % "logback-classic" % "1.1.3",
+  "ch.qos.logback" % "logback-classic" % "1.1.7",
   //Testing
   "org.scalatest" %% "scalatest" % "2.2.6" % "test",
   //Configuration
@@ -35,6 +35,7 @@ libraryDependencies ++= Seq(
   //Dimensions mainly information (KB, MB, etc)
   "com.squants"  %% "squants"  % "0.6.2"
 )
+resolvers += Resolver.typesafeRepo("releases")
 
 autoAPIMappings := true
 scalacOptions in (Compile,doc) ++= Seq("-groups", "-implicits", "-diagrams")
@@ -59,6 +60,11 @@ pomExtra :=
       <id>Lasering</id>
       <name>Simão Martins</name>
       <url>https://github.com/Lasering</url>
+    </developer>
+    <developer>
+      <id>botelhorui</id>
+      <name>Rui Botelho</name>
+      <url>https://github.com/botelhorui</url>
     </developer>
   </developers>
 

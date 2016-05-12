@@ -1,21 +1,23 @@
-# Use container-based infrastructure
-sudo: false
+sudo: required
+dist: trusty
 
 language: scala
+scala: 2.11.7
+jdk: oraclejdk8
 
 cache:
   directories:
     - $HOME/.ivy2/cache
     - $HOME/.sbt/boot/
 
-scala:
-  - 2.11.7
-jdk:
-  - oraclejdk8
-  
-script:
-  - sbt ++$TRAVIS_SCALA_VERSION test
-  
+before_cache:
   # Tricks to avoid unnecessary cache updates
-  - find $HOME/.sbt -name "*.lock" | xargs rm
-  - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+  - find $HOME/.ivy2 -name "ivydata-*.properties" -delete
+  - find $HOME/.sbt -name "*.lock" -delete
+
+before_install:
+  - sudo bash setupVagrant.sh
+
+script:
+  # We preserve the environment to ensure the CODACY_PROJECT_TOKEN is accessible inside the containers
+  - sudo --preserve-env bash test.sh
