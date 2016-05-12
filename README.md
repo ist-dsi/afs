@@ -23,7 +23,7 @@ We use [semantic versioning](http://semver.org).
 ## Configurations
 afs uses [typesafe-config](https://github.com/typesafehub/config).
 
-The [reference.conf](src/main/resources/reference.conf) file was the following keys:
+The [reference.conf](src/main/resources/reference.conf) file has the following keys:
 ```scala
 afs {
 
