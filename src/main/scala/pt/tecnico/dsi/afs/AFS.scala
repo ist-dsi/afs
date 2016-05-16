@@ -63,7 +63,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    *
+    * For more details see "man fs_lsmount"
     * @param directory
     * @return
     */
@@ -73,6 +73,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     val e = new Expect[Either[ErrorCase, String]](command, Left(afs.UnknownError))
     e.expect
       .when(s"'$dir' is not a mount point.")
+        .returning(Left(InvalidMountPoint))
+      .when(s"'$dir' doesn't exist")
         .returning(Left(InvalidDirectory))
       .when(s"'$dir' is a mount point for volume '([^']+)'".r)
         .returning { m: Match =>
@@ -91,6 +93,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     val e = new Expect[Either[ErrorCase, Boolean]](s"fs mkmount -dir $dir -vol $volume", Left(afs.UnknownError))
     e.expect
       .when(s"File '$dir' doesn't exist")
+        .returning(Left(InvalidDirectory))
+      .when("mount points must be created within the AFS file system")
         .returning(Left(InvalidDirectory))
       .when(EndOfFile)
         .returning(Right(true))
@@ -362,8 +366,18 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
       s"vos create -server $server -partition $partition" +
         s" -name $name -maxquota ${maxQuota.toKibibytes.toLong}K", Left(afs.UnknownError))
     e.expect
-      .when(s"Volume $name created on partition $partition of $server")
+      .when(s"host '$server' not found")
+        .returning(Left(HostNotFound))
+      .when(s"partition $partition does not exist on server")
+        .returning(Left(InvalidPartition))
+      .when("already exists")
+        .returning(Left(InvalidVolumeName))
+      .when("bad integer specified for quotal")
+        .returning(Left(InvalidVolumeQuota))
+      .when(s"""Volume \\d+ created on partition $partition of $server""".r)
         .returning(Right(true))
+      .when(EndOfFile)
+        .returning(Left(UnknownError))
     e
   }
 

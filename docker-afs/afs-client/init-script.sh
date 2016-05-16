@@ -11,8 +11,8 @@ source `dirname $0`/configureKerberosClient.sh
 # has been completed and we can now continue to configure the AFS client in this container.
 modprobe openafs
 while [[ $(lsmod | grep openafs) ]]; do
-  >&2 echo "Module still in use - sleeping 30 secs"
-  sleep 30
+  >&2 echo "Module still in use - sleeping 5 secs"
+  sleep 5
 done
 echo ""
 
