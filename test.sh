@@ -3,6 +3,8 @@ START=$(date +%s)
 
 cd docker-afs
 
+vagrant rsync
+
 source start.sh
 EXIT_CODE=$?
 

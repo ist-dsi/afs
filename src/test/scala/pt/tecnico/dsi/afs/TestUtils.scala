@@ -9,8 +9,17 @@ import work.martins.simon.expect.fluent.Expect
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.DurationInt
 
-trait TestUtils extends ScalaFutures with Matchers with EitherValues with LazyLogging {
-  def idempotent[T](expect: Expect[Either[ErrorCase, T]], repetitions: Int = 3)(test: Either[ErrorCase, T] => Unit): Unit = {
+trait LowPriorityImplicits extends ScalaFutures {
+  implicit class SimpleRichExpect[T](expect: Expect[T]) {
+    def value: T = expect.run().futureValue(PatienceConfig(
+      timeout = scaled(expect.settings.timeout),
+      interval = scaled(500.millis)
+    ))
+  }
+}
+
+trait TestUtils extends ScalaFutures with Matchers with EitherValues with LazyLogging with LowPriorityImplicits {
+  def idempotent[A, B](expect: Expect[Either[A, B]], repetitions: Int = 3)(test: Either[A, B] => Unit): Unit = {
     require(repetitions >= 2, "To test for idempotency at least 2 repetitions must be made")
     //If this fails we do not want to catch its exception, because failing in the first attempt means
     //whatever is being tested in `test` is not implemented correctly. Therefore we do not want to mask
@@ -20,7 +29,7 @@ trait TestUtils extends ScalaFutures with Matchers with EitherValues with LazyLo
 
     //This code will only be executed if the previous test succeed.
     //And now we want to catch the exception because if `test` fails here it means it is not idempotent.
-    val results: IndexedSeq[Either[ErrorCase, T]] = (1 until repetitions).map(_ => expect.value)
+    val results: IndexedSeq[Either[A, B]] = (1 until repetitions).map(_ => expect.value)
     try {
       results.foreach(test)
     } catch {
@@ -37,20 +46,15 @@ trait TestUtils extends ScalaFutures with Matchers with EitherValues with LazyLo
     }
   }
 
-  implicit class RichExpect[T](expect: Expect[Either[ErrorCase, T]]) {
-    def leftValue: ErrorCase = value.left.value
-    def rightValue: T = value.right.value
-    def rightValueShouldBeUnit()(implicit ev: T =:= Unit): Unit = rightValue.shouldBe(())
+  implicit class RichExpect[A, B](expect: Expect[Either[A, B]]) extends SimpleRichExpect(expect) {
+    def leftValue: A = value.left.value
+    def rightValue: B = value.right.value
+    def rightValueShouldBeUnit()(implicit ev: B =:= Unit): Unit = rightValue.shouldBe(())
 
-    def leftValueShouldIdempotentlyBe(leftValue: ErrorCase): Unit = idempotent(expect)(_.left.value shouldBe leftValue)
-    def rightValueShouldIdempotentlyBe(rightValue: T): Unit = idempotent(expect)(_.right.value shouldBe rightValue)
-    def rightValueShouldIdempotentlyBeUnit()(implicit ev: T =:= Unit): Unit = idempotent(expect)(_.right.value.shouldBe(()))
+    def leftValueShouldIdempotentlyBe(leftValue: A): Unit = idempotent(expect)(_.left.value shouldBe leftValue)
+    def rightValueShouldIdempotentlyBe(rightValue: B): Unit = idempotent(expect)(_.right.value shouldBe rightValue)
+    def rightValueShouldIdempotentlyBeUnit()(implicit ev: B =:= Unit): Unit = idempotent(expect)(_.right.value.shouldBe(()))
 
-    def idempotentRightValue(rightValue: T => Unit): Unit = idempotent(expect)(t => rightValue(t.right.value))
-
-    def value: Either[ErrorCase, T] = expect.run().futureValue(PatienceConfig(
-      timeout = scaled(expect.settings.timeout),
-      interval = scaled(500.millis)
-    ))
+    def idempotentRightValue(rightValue: B => Unit): Unit = idempotent(expect)(t => rightValue(t.right.value))
   }
 }
