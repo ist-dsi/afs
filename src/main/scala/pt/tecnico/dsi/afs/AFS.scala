@@ -1,76 +1,55 @@
 package pt.tecnico.dsi.afs
 
 import java.io.File
-import java.lang
 
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
-import pt.tecnico.dsi.afs
 import squants.information.InformationConversions._
-import squants.information.{Information, Kibibytes}
+import squants.information.Information
 import work.martins.simon.expect.EndOfFile
 
 import scala.util.matching.Regex.Match
 import work.martins.simon.expect.fluent.Expect
+import pt.tecnico.dsi.afs.AFSUtils._
 
 class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   def this(config: Config) = this(new Settings(config))
   import settings._
 
   //region <FS commands>
-  /**
-    *
-    * @param directory
-    * @return
-    */
-  def listquota(directory: File): Expect[Either[ErrorCase, (String, Information, Information)]] = {
+  /** */
+  def listQuota(directory: File): Expect[Either[ErrorCase, Quota]] = {
     val dir = directory.getPath
-    val command = s"fs listquota $dir"
-    val e = new Expect[Either[ErrorCase, (String, Information, Information)]](command, Left(afs.UnknownError))
+    val e = new Expect(s"fs listquota -path $dir", defaultUnknownError[Quota])
     e.expect
-      .when(s"File '$dir' doesn't exist")
-        .returning(Left(InvalidDirectory))
-        //Note that Quota might be "no limit" but since we do not allow to set a quota to no limit we don't handle this case
+      .addWhen(insufficientPermission)
+      .addWhen(invalidDirectory)
       .when("""Volume Name\s+Quota\s+Used\s+%Used\s+Partition
-        |([^\s]+)\s+(\d+)\s+(\d+)""".stripMargin.r)
+        |([^\s]+)\s+(\d+|no limit)\s+(\d+)""".stripMargin.r)
         .returning { m: Match =>
-          //Quota and Used are in kilobytes
-          Right((m.group(1), Kibibytes(m.group(2).toInt), Kibibytes(m.group(3).toInt)))
+          val quotaDouble = if (m.group(2) == "no limit") Double.PositiveInfinity else m.group(2).toDouble
+          //Quota and Used are in kibibytes contrary to what is stated in the documentation
+          Right(Quota(m.group(1), quotaDouble.kibibytes, m.group(3).toDouble.kibibytes))
         }
-      .when(EndOfFile)
-        .returning(Left(afs.UnknownError))
     e
   }
-  /**
-    *
-    * @param directory
-    * @param quota
-    * @return
-    */
   def setQuota(directory: File, quota: Information): Expect[Either[ErrorCase, Unit]] = {
     require(quota >= 0.kibibytes, "new quota must be positive")
     val dir = directory.getPath
-    val command = s"fs setquota -path $dir -max ${quota.toKibibytes.toLong}"
-    val e = new Expect[Either[ErrorCase, Unit]](command, Left(afs.UnknownError))
+    val e = new Expect(s"fs setquota -path $dir -max ${quota.toKibibytes.toLong}K", defaultUnknownError[Unit])
     e.expect
-      .when(s"File '$dir' doesn't exist")
-        .returning(Left(InvalidDirectory))
+      .addWhen(insufficientPermission)
+      .addWhen(invalidDirectory)
       .when(".+".r)
-        .returning(Left(afs.UnknownError))
+        .returning(Left(UnknownError()))
       .when(EndOfFile)
         .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @param directory
-    * @return
-    */
   def listMount(directory: File): Expect[Either[ErrorCase, String]] = {
     val dir = directory.getPath
-    val command = s"fs lsmount $dir"
-    val e = new Expect[Either[ErrorCase, String]](command, Left(afs.UnknownError))
+    val e = new Expect(s"fs lsmount $dir", defaultUnknownError[String])
     e.expect
       .when(s"'$dir' is not a mount point.")
         .returning(Left(InvalidDirectory))
@@ -80,49 +59,30 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
         }
     e
   }
-  /**
-    *
-    * @param directory
-    * @param volume
-    * @return
-    */
-  def makeMount(directory: File, volume: String): Expect[Either[ErrorCase, Boolean]] = {
+  def makeMount(directory: File, volume: String): Expect[Either[ErrorCase, Unit]] = {
     val dir = directory.getPath
-    val e = new Expect[Either[ErrorCase, Boolean]](s"fs mkmount -dir $dir -vol $volume", Left(afs.UnknownError))
+    val e = new Expect(s"fs mkmount -dir $dir -vol $volume", defaultUnknownError[Unit])
     e.expect
-      .when(s"File '$dir' doesn't exist")
-        .returning(Left(InvalidDirectory))
+      .addWhen(invalidDirectory)
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
-  /**
-    *
-    * @param directory
-    * @return
-    */
-  def removeMount(directory: File): Expect[Either[ErrorCase, Boolean]] = {
+  def removeMount(directory: File): Expect[Either[ErrorCase, Unit]] = {
     val dir = directory.getPath
-    val e = new Expect[Either[ErrorCase, Boolean]](s"fs rmmount -dir $dir", Left(afs.UnknownError))
+    val e = new Expect(s"fs rmmount -dir $dir", defaultUnknownError[Unit])
     e.expect
-      .when(s"File '$dir' doesn't exist")
-        .returning(Left(InvalidDirectory))
+      .addWhen(invalidDirectory)
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @param directory
-    * @return
-    */
   def listACL(directory: File): Expect[Either[ErrorCase, Map[String, Permission]]] = {
     val dir = directory.getPath
-    val e = new Expect[Either[ErrorCase, Map[String, Permission]]](s"fs listacl -dir $dir", Left(afs.UnknownError))
+    val e = new Expect(s"fs listacl -dir $dir", defaultUnknownError[Map[String, Permission]])
     e.expect
-      .when(s"File '$dir' doesn't exist")
-        .returning(Left(InvalidDirectory))
+      .addWhen(invalidDirectory)
       .when(s"""Access list for $dir is
                |Normal rights:
                |(  [\w:.]+ \w\n?)+""".stripMargin.r)
@@ -135,34 +95,22 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
         }
     e
   }
-  /**
-    *
-    * @param directory
-    * @param acls
-    * @return
-    */
-  def setACL(directory: File, acls: Map[String, Permission]): Expect[Either[ErrorCase, Boolean]] = {
+  def setACL(directory: File, acls: Map[String, Permission]): Expect[Either[ErrorCase, Unit]] = {
     val aclsString = acls.map(t => t._1 + " " + t._2.acl).mkString(" ")
-    val dir = directory.getPath
-    val e = new Expect[Either[ErrorCase, Boolean]](s"fs setacl -dir $dir -acl $aclsString", Left(afs.UnknownError))
+    val e = new Expect(s"fs setacl -dir ${directory.getPath} -acl $aclsString", defaultUnknownError[Unit])
     e.expect
-      .when(s"File '$dir' doesn't exist")
-        .returning(Left(InvalidDirectory))
+      .addWhen(invalidDirectory)
       .when("Tried to add non-existent user to access control list")
         .returning(Left(InvalidUserOrGroupName))
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @return
-    */
-  def checkVolumes(): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"fs checkvolumes", Left(afs.UnknownError))
+  def checkVolumes(): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"fs checkvolumes", defaultUnknownError[Unit])
     e.expect("All volumeID/name mappings checked.")
-      .returning(Right(true))
+      .returning(Right(()))
     e
   }
   //endregion
@@ -175,13 +123,10 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * @return
     */
   def getUserId(username: String): Expect[Either[ErrorCase, String]] = {
-    val cmd = s"pts examine -nameorid $username"
-    val e = new Expect[Either[ErrorCase, String]](cmd, Left(afs.UnknownError))
+    val e = new Expect(s"pts examine -nameorid $username", defaultUnknownError[String])
     e.expect
       .when("""id: (\d+)""".r)
-        .returning { m =>
-          Right(m.group(1))
-        }
+        .returning { m => Right(m.group(1)) }
       .when("""User or group doesn't exist""".r)
         .returning(Left(UnknownUserName))
     e
@@ -194,8 +139,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * @return
     */
   def getUserName(id: String): Expect[Either[ErrorCase, String]] = {
-    val cmd = s"pts examine -nameorid $id"
-    val e = new Expect[Either[ErrorCase, String]](cmd, Left(afs.UnknownError))
+    val e = new Expect(s"pts examine -nameorid $id", defaultUnknownError[String])
     e.expect
       .when("""Name: ([\w\.]+),""".r)
         .returning { m =>
@@ -206,32 +150,20 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
-  /**
-    *
-    * @param name
-    * @param afsId
-    * @return
-    */
-  def createUser(name: String, afsId: Int): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"pts createuser -name $name -id $afsId", Left(afs.UnknownError))
+  def createUser(name: String, afsId: Int): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"pts createuser -name $name -id $afsId", defaultUnknownError[Unit])
     e.expect
       .when(s"Entry for id already exists ; unable to create user '$name' with id '$afsId'")
         .returning(Left(AFSIdAlreadyTaken))
       .when(s"Badly formed name (group prefix doesn't match owner?) ; unable to create user '$name' with id '$afsId'")
         .returning(Left(InvalidUserName))
       .when(s"User '$name' has id '$afsId'")
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @param name
-    * @param owner
-    * @return
-    */
   def createGroup(name: String, owner: String): Expect[Either[ErrorCase, Int]] = {
-    val e = new Expect[Either[ErrorCase, Int]](s"pts creategroup -name $name -owner $owner", Left(afs.UnknownError))
+    val e = new Expect(s"pts creategroup -name $name -owner $owner", defaultUnknownError[Int])
     e.expect
       .when(s"""User or group doesn't exist ; unable to create group $name with id -?\d+ owned by $owner'""".r)
         .returning(Left(InvalidUserName))
@@ -240,61 +172,39 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
-  /**
-    *
-    * @param name
-    * @return
-    */
-  def deleteUserOrGroup(name: String): Expect[Either[ErrorCase, Boolean]] = {
+  def deleteUserOrGroup(name: String): Expect[Either[ErrorCase, Unit]] = {
     //Should we also call fs cleanacl?
-    val e = new Expect[Either[ErrorCase, Boolean]](s"pts delete -nameorid $name", Left(afs.UnknownError))
+    val e = new Expect(s"pts delete -nameorid $name", defaultUnknownError[Unit])
     e.expect
       .when(s"User or group doesn't exist so couldn't look up id for $name")
         .returning(Left(InvalidUserOrGroupName))
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @param name
-    * @param group
-    * @return
-    */
-  def addUserToGroup(name: String, group: String): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"pts adduser -user $name -group $group", Left(afs.UnknownError))
+  def addUserToGroup(name: String, group: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"pts adduser -user $name -group $group", defaultUnknownError[Unit])
     e.expect
       .when(s"User or group doesn't exist ; unable to add user $name to group $group")
         .returning(Left(InvalidUserOrGroupName))
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @param name
-    * @param group
-    * @return
-    */
-  def removeUserFromGroup(name: String, group: String): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"pts removeuser -user $name -group $group", Left(afs.UnknownError))
+  def removeUserFromGroup(name: String, group: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"pts removeuser -user $name -group $group", defaultUnknownError[Unit])
     e.expect
       .when(s"User or group doesn't exist ; unable to remove user $name to group $group")
         .returning(Left(InvalidUserOrGroupName))
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
 
-  /**
-    *
-    * @param name
-    * @return
-    */
   def membership(name: String): Expect[Either[ErrorCase, Set[String]]] = {
-    val e = new Expect[Either[ErrorCase, Set[String]]](s"pts membership -nameOrId $name", Left(afs.UnknownError))
+    val e = new Expect(s"pts membership -nameOrId $name", defaultUnknownError[Set[String]])
     e.expect
       .when(s"User or group doesn't exist so couldn't look up id for $name")
         .returning(Left(InvalidUserOrGroupName))
@@ -315,12 +225,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
-  /**
-    *
-    * @return
-    */
   def listGroups(): Expect[Either[ErrorCase, Seq[(String, Int, Int, Int)]]] = {
-    val e = new Expect[Either[ErrorCase, Seq[(String, Int, Int, Int)]]](s"pts listentries -groups", Left(afs.UnknownError))
+    val e = new Expect(s"pts listentries -groups", defaultUnknownError[Seq[(String, Int, Int, Int)]])
     e.expect
       .when(s"""Name\tID\tOwner\tCreator
                |([^\n]+\n?)+""".stripMargin.r)
@@ -336,73 +242,42 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   //endregion
 
   //region <VOS commands>
-  /**
-    *
-    * @param name
-    * @return
-    */
-  def backupVolume(name: String): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"vos backup -id $name", Left(afs.UnknownError))
+  /** */
+  def backupVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos backup -id $name", defaultUnknownError[Unit])
     e.expect
       .when(s"Created backup volume for I$name")
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
-
-  /**
-    *
-    * @param server
-    * @param partition
-    * @param name
-    * @param maxQuota
-    * @return
-    */
-  def createVolume(server: String, partition: String, name: String, maxQuota: Information): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](
-      s"vos create -server $server -partition $partition" +
-        s" -name $name -maxquota ${maxQuota.toKibibytes.toLong}K", Left(afs.UnknownError))
+  def createVolume(server: String, partition: String, name: String, maxQuota: Information): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(
+      s"vos create -server $server -partition $partition -name $name -maxquota ${maxQuota.toKibibytes.toLong}K",
+      defaultUnknownError[Unit])
     e.expect
       .when(s"Volume $name created on partition $partition of $server")
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
-
-  /**
-    *
-    * @param name
-    * @return
-    */
-  def removeVolume(name: String): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"vos remove -id $name", Left(afs.UnknownError))
+  def removeVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos remove -id $name", defaultUnknownError[Unit])
     e.expect
       .when(s"")
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
-
-  /**
-    *
-    * @param name
-    * @return
-    */
-  def examineVolume(name: String): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"vos examine -id $name", Left(afs.UnknownError))
+  def examineVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos examine -id $name", defaultUnknownError[Unit])
     e.expect
       .when(s"")
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
-
-  /**
-    *
-    * @param name
-    * @return
-    */
-  def releaseVolume(name: String): Expect[Either[ErrorCase, Boolean]] = {
-    val e = new Expect[Either[ErrorCase, Boolean]](s"vos release -id $name", Left(UnknownError))
+  def releaseVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos release -id $name", defaultUnknownError[Unit])
     e.expect
       .when(EndOfFile)
-        .returning(Right(true))
+        .returning(Right(()))
     e
   }
   //endregion

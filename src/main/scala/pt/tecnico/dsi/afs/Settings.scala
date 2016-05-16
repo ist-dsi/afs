@@ -1,5 +1,7 @@
 package pt.tecnico.dsi.afs
 
+import java.io.File
+
 import com.typesafe.config.{Config, ConfigFactory, ConfigValueType}
 import work.martins.simon.expect.StringUtils.splitBySpaces
 
@@ -40,6 +42,7 @@ class Settings(config: Config = ConfigFactory.load()) {
   import afsConfig._
 
   val cell = getString("cell")
+  val cacheDir = new File(getString("cache-dir"))
 
   override def toString: String = afsConfig.root.render
 }
