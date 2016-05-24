@@ -14,8 +14,10 @@ sudo su
 #modprobe --remove --quiet openafs
 rmmod openafs
 
+# Remove any previously existing containers
+docker rm -f `docker ps -qa | xargs`
+
 cd /vagrant
-#it compiles twice
 #sbt test:compile
 
 cd /vagrant/docker-afs
@@ -28,7 +30,7 @@ docker-compose up --abort-on-container-exit
 EXIT_CODE=$(docker-compose ps "afs-client" | grep -oP "(?<=Exit )\d+")
 
 # Remove the containers to ensure a clean slate the next time this script in ran.
-docker-compose rm --all --force
+docker-compose rm -f
 
 exit $EXIT_CODE
 EOF

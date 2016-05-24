@@ -18,7 +18,7 @@ class QuotaSpec extends FlatSpec with TestUtils {
 
 
   "listquota" should "return InvalidDirectory when directory does not exist" in {
-    listQuota(nonExistingFile).leftValue shouldBe InvalidDirectory
+    listQuota(nonExistingFile) leftValueShouldIdempotentlyBe InvalidDirectory
   }
   it should "return the quota and the used size" in {
     val Quota(_, quotaBefore, usedBefore) = listQuota(rootCellFile).rightValue
@@ -31,20 +31,21 @@ class QuotaSpec extends FlatSpec with TestUtils {
     outputStream.write(data)
     outputStream.close()
 
-    val Quota(_, quota, used) = listQuota(rootCellFile).rightValue
-    quota shouldBe quotaBefore
-    used shouldBe (usedBefore + fileSize)
+    listQuota(rootCellFile).idempotentRightValue { case Quota(_, quota, used) =>
+      quota shouldBe quotaBefore
+      used shouldBe (usedBefore + fileSize)
+    }
   }
 
   "setquota" should "return InvalidDirectory when directory does not exist" in {
-    setQuota(nonExistingFile, 1.mebibytes).leftValue shouldBe InvalidDirectory
+    setQuota(nonExistingFile, 1.mebibytes) leftValueShouldIdempotentlyBe InvalidDirectory
   }
 
   it should "update the quota to the requested value" in {
     val Quota(_, quotaBefore, _) = listQuota(rootCellFile).rightValue
 
     val newQuota = quotaBefore + 200.kibibytes
-    setQuota(rootCellFile, newQuota).rightValueShouldBeUnit()
+    setQuota(rootCellFile, newQuota).rightValueShouldIdempotentlyBeUnit()
 
     listQuota(rootCellFile).rightValue.quota shouldBe newQuota
   }

@@ -16,6 +16,9 @@ case object InvalidPartition extends ErrorCase
 case object InvalidVolumeName extends ErrorCase
 case object InvalidVolumeQuota extends ErrorCase
 case object InsufficientPermissions extends ErrorCase
+// vos
+case object ReadOnlyPartitionAlreadyExists extends ErrorCase
+case object NonExistantReadWriteVolume extends ErrorCase
 
 object UnknownError {
   def apply(message: String): UnknownError = new UnknownError(Some(new Exception(message)))

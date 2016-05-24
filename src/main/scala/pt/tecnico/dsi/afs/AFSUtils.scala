@@ -34,4 +34,5 @@ object AFSUtils {
     expectBlock.when("File '[^']+' doesn't exist".r)
       .returning(Left(InvalidDirectory))
   }
+
 }

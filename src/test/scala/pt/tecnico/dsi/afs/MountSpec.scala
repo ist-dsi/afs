@@ -25,18 +25,16 @@ class MountSpec extends FlatSpec with TestUtils {
   val regularVolume = s"#$cellName:$volumeName"
 
   "listMount" should "return InvalidDirectory when directory does not exist" in {
-    listMount(nonExistingDirectory).leftValue shouldBe InvalidDirectory
+    listMount(nonExistingDirectory) leftValueShouldIdempotentlyBe  InvalidDirectory
   }
   it should "return invalid mount Point when the existing directory is not a mount point" in{
-    listMount(nonMountPointDirectory).leftValue shouldBe InvalidMountPoint
+    listMount(nonMountPointDirectory) leftValueShouldIdempotentlyBe  InvalidMountPoint
   }
   it should "return the respective read write volume" in {
-    val volume = listMount(readWriteMountPoint).rightValue
-    volume shouldBe readWriteVolume
+    listMount(readWriteMountPoint) rightValueShouldIdempotentlyBe readWriteVolume
   }
   it should "return the respective regular volume" in {
-    val volume = listMount(regularMountPoint).rightValue
-    volume shouldBe regularVolume
+    listMount(regularMountPoint) rightValueShouldIdempotentlyBe  regularVolume
   }
 
   //"makeMount" should "mount a directory in the afs " in {}
