@@ -1,5 +1,6 @@
 package pt.tecnico.dsi.afs
 
+import work.martins.simon.expect.EndOfFile
 import work.martins.simon.expect.fluent.{Expect, ExpectBlock}
 
 object AFSUtils {
@@ -33,5 +34,19 @@ object AFSUtils {
   def invalidDirectory[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
     expectBlock.when("File '[^']+' doesn't exist".r)
       .returning(Left(InvalidDirectory))
+  }
+  def unknownError[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+    expectBlock.when("(.+)$".r)
+      .returning(m => Left(UnknownError(m.group(1))))
+  }
+
+  def notAMountPoint[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+    expectBlock.when(s"is not a mount point.")
+      .returning(Left(NotAMountPoint))
+  }
+
+  def successOnEndOfFile(expectBlock: ExpectBlock[Either[ErrorCase, Unit]]) = {
+    expectBlock.when(EndOfFile)
+      .returning(Right(()))
   }
 }

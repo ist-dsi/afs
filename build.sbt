@@ -2,12 +2,12 @@ organization := "pt.tecnico.dsi"
 name := "afs"
 version := "0.0.1"
 
+val javaVersion = "1.8"
 initialize := {
-  val required = "1.8"
   val current  = sys.props("java.specification.version")
-  assert(current == required, s"Unsupported JDK: java.specification.version $current != $required")
+  assert(current == javaVersion, s"Unsupported JDK: expected JDK $javaVersion installed, but instead got JDK $current.")
 }
-javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint")
+javacOptions ++= Seq("-source", javaVersion, "-target", javaVersion, "-Xlint")
 
 scalaVersion := "2.11.8"
 scalacOptions ++= Seq(

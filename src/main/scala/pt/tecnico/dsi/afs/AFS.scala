@@ -9,7 +9,7 @@ import squants.information.Information
 import work.martins.simon.expect.EndOfFile
 
 import scala.util.matching.Regex.Match
-import work.martins.simon.expect.fluent.Expect
+import work.martins.simon.expect.fluent.{Expect, StringWhen}
 import pt.tecnico.dsi.afs.AFSUtils._
 
 class AFS(val settings: Settings = new Settings()) extends LazyLogging {
@@ -31,50 +31,69 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
           //Quota and Used are in kibibytes contrary to what is stated in the documentation
           Right(Quota(m.group(1), quotaDouble.kibibytes, m.group(3).toDouble.kibibytes))
         }
+      .addWhen(unknownError)
     e
   }
   def setQuota(directory: File, quota: Information): Expect[Either[ErrorCase, Unit]] = {
-    require(quota >= 0.kibibytes, "new quota must be positive")
-    val dir = directory.getPath
-    val e = new Expect(s"fs setquota -path $dir -max ${quota.toKibibytes.toLong}K", defaultUnknownError[Unit])
+    require((quota > 0.kibibytes && quota <= 2.tebibytes) || quota.value.isPosInfinity,
+      "new quota must be ]0 Kib, 2 Tib] ∪ +∞")
+    val newQuota = if (quota.value.isPosInfinity) "0" else s"${quota.toKibibytes.round}"
+    val e = new Expect(s"fs setquota -path ${directory.getPath} -max ${newQuota}K", defaultUnknownError[Unit])
     e.expect
       .addWhen(insufficientPermission)
       .addWhen(invalidDirectory)
-      .when(".+".r)
-        .returning(Left(UnknownError()))
-      .when(EndOfFile)
-        .returning(Right(()))
+      .addWhen(successOnEndOfFile)
+      .addWhen(unknownError)
     e
   }
 
   def listMount(directory: File): Expect[Either[ErrorCase, String]] = {
-    val dir = directory.getPath
-    val e = new Expect(s"fs lsmount $dir", defaultUnknownError[String])
+    val e = new Expect(s"fs lsmount ${directory.getPath}", defaultUnknownError[String])
     e.expect
-      .when(s"'$dir' is not a mount point.")
-        .returning(Left(InvalidDirectory))
-      .when(s"'$dir' is a mount point for volume '([^']+)'".r)
-        .returning { m: Match =>
-          Right(m.group(1))
-        }
+      .addWhen(insufficientPermission)
+      .addWhen(invalidDirectory)
+      .addWhen(notAMountPoint)
+      .when(s"a mount point for volume '([^']+)'".r)
+        .returning(m => Right(m.group(1)))
+      .addWhen(unknownError)
     e
   }
   def makeMount(directory: File, volume: String): Expect[Either[ErrorCase, Unit]] = {
-    val dir = directory.getPath
-    val e = new Expect(s"fs mkmount -dir $dir -vol $volume", defaultUnknownError[Unit])
+    val e = new Expect(s"fs mkmount -dir ${directory.getPath} -vol $volume", defaultUnknownError[Unit])
     e.expect
-      .addWhen(invalidDirectory)
-      .when(EndOfFile)
-        .returning(Right(()))
+      .addWhen(insufficientPermission)
+      .when("File exists")
+        .returningExpect {
+          /*listMount(directory) transform {
+            case Left(NotAMountPoint) =>
+              //The existing directory is NOT a mount point. We must return an error.
+              Left(FileAlreadyExists)
+            case Right(v) if v.contains(volume) =>
+              //The existing directory is already a mount point to the volume we want
+              Right(())
+            case Left(l) => Left(l)
+            case Right(v) =>
+              //The existing directory is a mount point to another volume
+              //We must remove the existing mount point and then invoke makeMount again
+              removeMount(directory) transform {
+                case Right(()) => makeMount(directory)
+                case either => either
+              }
+          }*/
+          ???
+        }
+      .when(s"volume $volume does not exist")
+        .returning(Left(InvalidVolume))
+      .addWhen(successOnEndOfFile)
     e
   }
   def removeMount(directory: File): Expect[Either[ErrorCase, Unit]] = {
-    val dir = directory.getPath
-    val e = new Expect(s"fs rmmount -dir $dir", defaultUnknownError[Unit])
+    val e = new Expect(s"fs rmmount -dir ${directory.getPath}", defaultUnknownError[Unit])
     e.expect
       .addWhen(invalidDirectory)
-      .when(EndOfFile)
-        .returning(Right(()))
+        .returning(Right(())) //This makes it idempotent
+      .addWhen(successOnEndOfFile)
+      .addWhen(unknownError)
     e
   }
 
@@ -204,9 +223,9 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   def membership(name: String): Expect[Either[ErrorCase, Set[String]]] = {
-    val e = new Expect(s"pts membership -nameOrId $name", defaultUnknownError[Set[String]])
+    val e = new Expect(s"pts membership -nameorid $name", defaultUnknownError[Set[String]])
     e.expect
-      .when(s"User or group doesn't exist so couldn't look up id for $name")
+      .when(s"User or group doesn't exist")
         .returning(Left(InvalidUserOrGroupName))
       //If $name is a user name or user afs id
       .when(s"""Groups [^ ]+ id: \d+ is a member of:
