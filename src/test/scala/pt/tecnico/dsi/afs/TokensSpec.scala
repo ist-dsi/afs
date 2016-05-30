@@ -3,7 +3,7 @@ package pt.tecnico.dsi.afs
 import org.scalatest.FlatSpec
 import pt.tecnico.dsi.afs.AFSUtils._
 import pt.tecnico.dsi.kadmin.KadminUtils
-
+/*
 class TokensSpec extends FlatSpec with TestUtils {
 
   //TODO: read these values from the afs.env file in the docker-afs folder
@@ -35,3 +35,4 @@ class TokensSpec extends FlatSpec with TestUtils {
     destroyTokens().value.shouldBe(())
   }
 }
+*/

@@ -40,6 +40,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     val newQuota = if (quota.value.isPosInfinity) "0" else s"${quota.toKibibytes.round}"
     val e = new Expect(s"fs setquota -path ${directory.getPath} -max ${newQuota}K", defaultUnknownError[Unit])
     e.expect
+      // TODO permissions not tested
       .addWhen(insufficientPermission)
       .addWhen(invalidDirectory)
       .addWhen(successOnEndOfFile)
@@ -47,6 +48,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * For more details see "man fs_lsmount"
+    * @param directory
+    * @return
+    */
   def listMount(directory: File): Expect[Either[ErrorCase, String]] = {
     val e = new Expect(s"fs lsmount ${directory.getPath}", defaultUnknownError[String])
     e.expect
@@ -261,30 +267,113 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   //endregion
 
   //region <VOS commands>
+
+
+  /**
+    * Create an AFS volume on a given "server" , in given a "partition" in the given server, with a given
+    * "name" and a maximum quota defined by "maxQuota"
+    * @param server
+    * @param partition
+    * @param name
+    * @param maxQuota defines the maximum allowed quota that is defined in Kibibytes in the command
+    * @return
+    */
+  def createVolume(server: String, partition: String, name: String, maxQuota: Information): Expect[Either[ErrorCase, Unit]] = {
+    // TODO turn method idempotent
+    // TODO If called twice with same name(server,partition), check that quota is the same
+    val e = new Expect(
+      s"vos create -server $server -partition $partition -name $name -maxquota ${maxQuota.toKibibytes.toLong}K",
+      defaultUnknownError[Unit])
+    e.expect
+      .when(s"host '$server' not found".r)
+        .returning(Left(HostNotFound))
+      .when(s"""partition $partition does not exist""".r)
+        .returning(Left(InvalidPartition))
+      .when("already exists".r)
+        .returning(Left(InvalidVolumeName))
+      .when("bad integer specified for quota".r)
+        .returning(Left(InvalidVolumeQuota))
+      .when(s"""Volume \\d+ created on partition $partition of $server""".r)
+        .returning(Right(()))
+      .when(EndOfFile)
+        .returning(Left(UnknownError()))
+    e
+  }
+
+  /**
+    * Remove an AFS volume on a given "server" , in given a "partition" in the given server, with a given
+    * "name"
+    * @param server name where the AFS's partition is setup
+    * @param partition where the AFS volume was created
+    * @param name of an existing AFS volume name
+    * @return
+    */
+  def removeVolume(server: String, partition: String, name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos remove -server $server -partition $partition -id $name",
+      defaultUnknownError[Unit])
+
+    e.expect
+      .when("server .+ not found".r)
+        .returning(Left(HostNotFound))
+      .when(s"""partition $partition does not exist""".r)
+        .returning(Left(InvalidPartition))
+      .when("Can't find volume")
+        .returning(Right(()))
+      .when("Volume .+ deleted".r)
+        .returning(Right(()))
+    e
+  }
+
+  def addSite(server: String, partition: String, name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos addsite -server $server -partition $partition -id $name",
+      defaultUnknownError[Unit])
+    e.expect
+      .when("server .+ not found".r)
+        .returning(Left(HostNotFound))
+      .when("VLDB: no such entry".r)
+        .returning(Left(NonExistantReadWriteVolume))
+      .when("RO already exists on partition".r)
+        .returning(Right(()))
+      .when(s"""partition $partition does not exist""".r)
+        .returning(Left(InvalidPartition))
+      .when("Added replication site".r)
+        .returning(Right(()))
+    e
+  }
+
+  def releaseVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos release -id $name", defaultUnknownError[Unit])
+    e.expect
+      .when("VLDB: no such entry".r)
+        .returning(Right(()))
+      .when("Released volume .+ successfully".r)
+        .returning(Right(()))
+    e
+  }
+
+  /*
+  def setVolumeQuota(volName: String, maxQuota: Information): Expect[Either[ErrorCase,Unit]] = {
+      val e = new Expect(s"vos setfields -id $volName -maxquota ${maxQuota.toKibibytes.toLong}K",defaultUnknownError[Unit])
+      e.expect
+        //TODO other error cases
+      .when(".+".r)
+        .returning(Left(UnknownError("Unknown setVolumeQuota error")))
+      .when(EndOfFile)
+        .returning(Right(()))
+      e
+  }
+  */
+
   /** */
   def backupVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"vos backup -id $name", defaultUnknownError[Unit])
     e.expect
       .when(s"Created backup volume for I$name")
-        .returning(Right(()))
+      .returning(Right(()))
     e
   }
-  def createVolume(server: String, partition: String, name: String, maxQuota: Information): Expect[Either[ErrorCase, Unit]] = {
-    val e = new Expect(
-      s"vos create -server $server -partition $partition -name $name -maxquota ${maxQuota.toKibibytes.toLong}K",
-      defaultUnknownError[Unit])
-    e.expect
-      .when(s"Volume $name created on partition $partition of $server")
-        .returning(Right(()))
-    e
-  }
-  def removeVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
-    val e = new Expect(s"vos remove -id $name", defaultUnknownError[Unit])
-    e.expect
-      .when(s"")
-        .returning(Right(()))
-    e
-  }
+
+
   def examineVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"vos examine -id $name", defaultUnknownError[Unit])
     e.expect
@@ -292,12 +381,6 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
         .returning(Right(()))
     e
   }
-  def releaseVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
-    val e = new Expect(s"vos release -id $name", defaultUnknownError[Unit])
-    e.expect
-      .when(EndOfFile)
-        .returning(Right(()))
-    e
-  }
+
   //endregion
 }

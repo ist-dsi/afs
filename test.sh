@@ -9,6 +9,6 @@ source start.sh
 EXIT_CODE=$?
 
 END=$(date +%s)
-echo $(($END-$START)) "seconds"
+echo "Testing took" $(($END-$START)) "seconds"
 
 exit $EXIT_CODE

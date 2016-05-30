@@ -11,8 +11,8 @@ source `dirname $0`/configureKerberosClient.sh
 # has been completed and we can now continue to configure the AFS client in this container.
 modprobe openafs
 while [[ $(lsmod | grep openafs) ]]; do
-  >&2 echo "Module still in use - sleeping 30 secs"
-  sleep 30
+  >&2 echo "Module still in use - sleeping 5 secs"
+  sleep 5
 done
 echo ""
 
@@ -23,7 +23,7 @@ echo "==== Tests ===============================================================
 echo "==================================================================================="
 cd /tmp/afs
 
-sbt <<<"testOnly pt.tecnico.dsi.afs.QuotaSpec"
+sbt <<<"testOnly pt.tecnico.dsi.afs.VolumeSpec"
 #sbt test
 
 # Be sure to stop the openafs-client otherwise the afs kernel module will not be unloaded and you

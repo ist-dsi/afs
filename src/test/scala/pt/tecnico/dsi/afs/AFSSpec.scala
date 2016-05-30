@@ -12,41 +12,41 @@ import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.ExecutionContext.Implicits.global
 
-
+/*
 /**
-  *
-  */
+ *
+ */
 class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
-  val afs = new AFS()
-  val path = "/afs/.example.com/"
-  val randomFile = "random.data"
-  val nonExistingPath = "/afs/aaaa"
-  val volumeName: String = "root.cell"
-  val nonExitingVolumeName = "root.a"
-  val volumeExpected = "#" + volumeName
-  //
-  val ptsAdminUser = "afsadmin.admin"
-  val ptsAdminUserId = "1"
-  val ptsNonExistingUser = "test.admin"
-  val ptsNonExistingUserId = "1024"
+ val afs = new AFS()
+ val path = "/afs/.example.com/"
+ val randomFile = "random.data"
+ val nonExistingPath = "/afs/aaaa"
+ val volumeName: String = "root.cell"
+ val nonExitingVolumeName = "root.a"
+ val volumeExpected = "#" + volumeName
+ //
+ val ptsAdminUser = "afsadmin.admin"
+ val ptsAdminUserId = "1"
+ val ptsNonExistingUser = "test.admin"
+ val ptsNonExistingUserId = "1024"
 
-  val defaultQuota = Kilobytes(2048000)
+ val defaultQuota = Kilobytes(2048000)
 
-  val timeout = 5.seconds
+ val timeout = 5.seconds
 
 
-  /*
-    removes all files and directories in the path afs directory
 
-  def clean() = {
-    sys.process.Process(Seq("rm", "-f", tmpFile), new java.io.File(path)).!!
-    val command = s"fs setquota -path ${new File(path).getPath} -max ${defaultQuota.toKilobytes.toLong}"
-    sys.process.Process(command.split(" "), new File(path)).!!
+   removes all files and directories in the path afs directory
 
-  }*/
+ def clean() = {
+   sys.process.Process(Seq("rm", "-f", tmpFile), new java.io.File(path)).!!
+   val command = s"fs setquota -path ${new File(path).getPath} -max ${defaultQuota.toKilobytes.toLong}"
+   sys.process.Process(command.split(" "), new File(path)).!!
+
+ }
 
   //region <PTS commands>
-/*
+
 
   "AFS listquota" should "return (name, quota, used) when the directory exists" in {
     val e = AFS.listquota(new File(path))
@@ -133,7 +133,7 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
       }
     }
   }
-  /*
+
   "AFS listMount" should "return the volume for the given directory" in {
       AFS.listMount(new File(path)).run().futureValue match {
       case Right(volume) => {
@@ -191,9 +191,9 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
                case _ => fail("operation should have failed")
              }
            }
-   */
 
-  /*
+
+
           "AFS RemoveMount" should "remove mount for the given directory" in {
             // TODO before after
             AFS.removeMount(new File(path)).run().futureValue match {
@@ -241,9 +241,6 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
 
           //endregion
 
-*/
-
-
   "AFS getUserID" should "return the Id of an existing user" in {
     AFS.getUserId(ptsAdminUser).run().futureValue match {
       case Right(id) => {
@@ -286,10 +283,6 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
       }
     }
   }
-*/
-
-  /*
-
           //region <PTS commands>
 
           "AFS createUser" should "return success when username is valid and not used" in {
@@ -361,7 +354,9 @@ class AFSSpec extends FlatSpec with ScalaFutures with Matchers {
           }
           //endregion
 
-        */
+
 
 
 }
+
+*/
