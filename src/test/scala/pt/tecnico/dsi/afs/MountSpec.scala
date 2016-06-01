@@ -28,7 +28,7 @@ class MountSpec extends FlatSpec with TestUtils {
     listMount(nonExistingDirectory) leftValueShouldIdempotentlyBe  InvalidDirectory
   }
   it should "return invalid mount Point when the existing directory is not a mount point" in{
-    listMount(nonMountPointDirectory) leftValueShouldIdempotentlyBe  InvalidMountPoint
+    listMount(nonMountPointDirectory) leftValueShouldIdempotentlyBe  NotAMountPoint
   }
   it should "return the respective read write volume" in {
     listMount(readWriteMountPoint) rightValueShouldIdempotentlyBe readWriteVolume

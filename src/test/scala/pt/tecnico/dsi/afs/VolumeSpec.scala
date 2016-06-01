@@ -19,51 +19,75 @@ class VolumeSpec extends FlatSpec with TestUtils {
   val volumeName = "test"
   val invalidVolumeName = "testt"
 
-  "createVolume" should "create a volume normally" in {
+  "createVolume" should "create a volume successfully" in {
     createVolume(server, partition, volumeName, 5.mebibytes).rightValue.shouldBe(())
   }
   it should "return Host Not Found when server does not exist" in {
-    createVolume(invalidServer,partition,volumeName,5.mebibytes).leftValue.shouldBe(HostNotFound)
+    createVolume(invalidServer,partition,volumeName,5.mebibytes).leftValueShouldIdempotentlyBe(HostNotFound)
   }
   it should "return invalid partition when the given partition does not exist" in {
-    createVolume(server,invalidPartition,volumeName,5.mebibytes).leftValue.shouldBe(InvalidPartition)
+    createVolume(server,invalidPartition,volumeName,5.mebibytes).leftValueShouldIdempotentlyBe(InvalidPartition)
   }
   it should "return error when volume name already exists" in {
-    createVolume(server,partition,volumeName,5.mebibytes).leftValue.shouldBe(InvalidVolumeName)
+    createVolume(server,partition,volumeName,5.mebibytes).leftValueShouldIdempotentlyBe(InvalidVolumeName)
   }
 
-  "removeVolume" should "remove normally" in {
+  "removeVolume" should "remove a volume successfully" in {
     // CAREFULL the state from the createVolume test is used since we remove the volume created on those tests
-    removeVolume(server,partition,volumeName).rightValue.shouldBe(())
+    removeVolume(server,partition,volumeName).rightValueShouldIdempotentlyBeUnit()
   }
   it should "return Host Not Found when server does not exist" in {
-    removeVolume(invalidServer,partition,volumeName).leftValue.shouldBe(HostNotFound)
+    removeVolume(invalidServer,partition,volumeName).leftValueShouldIdempotentlyBe(HostNotFound)
   }
   it should "return invalid partition when the given partition does not exist" in {
-    removeVolume(server,invalidPartition,volumeName).leftValue.shouldBe(InvalidPartition)
+    removeVolume(server,invalidPartition,volumeName).leftValueShouldIdempotentlyBe(InvalidPartition)
   }
-  it should "return success when volume name already exists" in {
-    removeVolume(server,partition,invalidVolumeName).rightValueShouldIdempotentlyBe(())
+  it should "return success when when volume does not exist" in {
+    removeVolume(server,partition,invalidVolumeName).rightValueShouldIdempotentlyBeUnit()
   }
 
-  "addSite" should "create a replication site for the given volume" in {
+  "addSite" should "create a replication site for the given volume successfully" in {
     createVolume(server, partition, volumeName, 5.mebibytes).rightValue.shouldBe(())
-    addSite(server,partition,volumeName).rightValue.shouldBe(())
-  }
-  it should "return success, the second time it is called with the same arguments" in {
-    addSite(server,partition,volumeName).rightValueShouldIdempotentlyBe(())
+    addSite(server,partition,volumeName).rightValueShouldIdempotentlyBeUnit()
   }
   it should "return error when the volumeName read/write does not exist" in {
-    addSite(server,partition,invalidVolumeName).leftValue.shouldBe(NonExistantReadWriteVolume)
+    addSite(server,partition,invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
   it should "return Host Not Found when server does not exist" in {
-    addSite(invalidServer,partition,volumeName).leftValue.shouldBe(HostNotFound)
+    addSite(invalidServer,partition,volumeName).leftValueShouldIdempotentlyBe(HostNotFound)
   }
   it should "return invalid partition when the given partition does not exist" in {
-    addSite(server,invalidPartition,volumeName).leftValue.shouldBe(InvalidPartition)
+    addSite(server,invalidPartition,volumeName).leftValueShouldIdempotentlyBe(InvalidPartition)
   }
 
   "releaseVolume" should "release volume normally" in {
-    releaseVolume(volumeName).rightValue.shouldBe(())
+    releaseVolume(volumeName).rightValueShouldIdempotentlyBeUnit()
   }
+  it should "return error when volume does not exist" in {
+    releaseVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
+  }
+
+  "examineVolume" should "check that volume is working" in {
+    examineVolume(volumeName).rightValueShouldIdempotentlyBe(())
+  }
+  it should "return error when volume does not exist" in {
+    examineVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
+  }
+
+  "volumeExist" should "return success idempotently when volume exists" in {
+    volumeExists(volumeName).rightValueShouldIdempotentlyBe(())
+  }
+  it should "return error when volume does not exist" in {
+    volumeExists(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
+  }
+
+  "backupVolume" should "return success when backup volume is successfully created" in {
+    backupVolume(volumeName).rightValueShouldIdempotentlyBeUnit()
+  }
+  it should "return error when the target volume does not exist" in {
+    backupVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
+  }
+
+
+
 }

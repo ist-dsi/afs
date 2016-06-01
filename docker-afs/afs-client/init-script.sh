@@ -23,7 +23,7 @@ echo "==== Tests ===============================================================
 echo "==================================================================================="
 cd /tmp/afs
 
-sbt <<<"testOnly pt.tecnico.dsi.afs.VolumeSpec"
+sbt <<<"testOnly pt.tecnico.dsi.afs.ACLSpec"
 #sbt test
 
 # Be sure to stop the openafs-client otherwise the afs kernel module will not be unloaded and you

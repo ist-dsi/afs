@@ -17,6 +17,7 @@
 
     <logger name="org.scalatest" level="DEBUG" />
     <logger name="work.martins.simon.expect" level="DEBUG" />
+    <logger name="pt.tecnico.dsi.afs" level="DEBUG" />
 
     <root level="DEBUG">
         <!-- <appender-ref ref="FILE"/> -->

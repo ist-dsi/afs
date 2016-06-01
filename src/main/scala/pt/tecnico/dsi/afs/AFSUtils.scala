@@ -49,4 +49,22 @@ object AFSUtils {
     expectBlock.when(EndOfFile)
       .returning(Right(()))
   }
+
+  def hostNotFound[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+    expectBlock.when("not found in host table".r)
+      .returning(Left(HostNotFound))
+  }
+
+  def invalidPartition[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+    expectBlock.when("partition .+ does not exist".r)
+      .returning(Left(InvalidPartition))
+  }
+
+  def nonExistingVolume[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+    expectBlock.when("VLDB: no such entry".r)
+      .returning(Left(NonExistingVolume))
+  }
+
+
+
 }
