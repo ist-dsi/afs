@@ -23,8 +23,8 @@ echo "==== Tests ===============================================================
 echo "==================================================================================="
 cd /tmp/afs
 
-sbt <<<"testOnly pt.tecnico.dsi.afs.ACLSpec"
-#sbt test
+#sbt <<<"testOnly pt.tecnico.dsi.afs.QuotaSpec"
+sbt test
 
 # Be sure to stop the openafs-client otherwise the afs kernel module will not be unloaded and you
 # will have problems stopping the containers.

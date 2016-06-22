@@ -13,7 +13,7 @@ trait LowPriorityImplicits extends ScalaFutures {
   implicit class SimpleRichExpect[T](expect: Expect[T]) {
     def value: T = expect.run().futureValue(PatienceConfig(
       timeout = scaled(expect.settings.timeout),
-      interval = scaled(500.millis)
+      interval = scaled(1000.millis)
     ))
   }
 }
@@ -35,11 +35,11 @@ trait TestUtils extends ScalaFutures with Matchers with EitherValues with LazyLo
     } catch {
       case e: TestFailedException =>
         val otherResultsString = (1 until repetitions).map { i =>
-          f"  $i%2d\t${results(i)}"
+          f"  $i:\t${results(i-1)}"
         }.mkString("\n")
 
         throw new TestFailedException(s"""Operation is not idempotent. Results:
-                                          |  01:\t$firstResult
+                                          |  0:\t$firstResult
                                           |$otherResultsString
                                           |${e.message}""".stripMargin,
           e, e.failedCodeStackDepth + 1)

@@ -104,6 +104,9 @@ case object AllPermissions extends MultiplePermissions(Set(Administer, Delete, I
   override protected[afs] val acl: String = "all"
 }
 
+/**
+  * This permission is only present in a map of permissions
+  */
 case object NoPermissions extends MultiplePermissions(Set.empty) {
   override protected[afs] val acl: String = "none"
 }

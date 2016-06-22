@@ -10,6 +10,7 @@ import squants.information.InformationConversions._
   */
 class VolumeSpec extends FlatSpec with TestUtils {
   val afs = new AFS()
+
   import afs._
 
   val server = "afs"
@@ -23,41 +24,41 @@ class VolumeSpec extends FlatSpec with TestUtils {
     createVolume(server, partition, volumeName, 5.mebibytes).rightValue.shouldBe(())
   }
   it should "return Host Not Found when server does not exist" in {
-    createVolume(invalidServer,partition,volumeName,5.mebibytes).leftValueShouldIdempotentlyBe(HostNotFound)
+    createVolume(invalidServer, partition, volumeName, 5.mebibytes).leftValueShouldIdempotentlyBe(HostNotFound)
   }
   it should "return invalid partition when the given partition does not exist" in {
-    createVolume(server,invalidPartition,volumeName,5.mebibytes).leftValueShouldIdempotentlyBe(InvalidPartition)
+    createVolume(server, invalidPartition, volumeName, 5.mebibytes).leftValueShouldIdempotentlyBe(InvalidPartition)
   }
   it should "return error when volume name already exists" in {
-    createVolume(server,partition,volumeName,5.mebibytes).leftValueShouldIdempotentlyBe(InvalidVolumeName)
+    createVolume(server, partition, volumeName, 5.mebibytes).leftValueShouldIdempotentlyBe(InvalidVolumeName)
   }
 
   "removeVolume" should "remove a volume successfully" in {
     // CAREFULL the state from the createVolume test is used since we remove the volume created on those tests
-    removeVolume(server,partition,volumeName).rightValueShouldIdempotentlyBeUnit()
+    removeVolume(server, partition, volumeName).rightValueShouldIdempotentlyBeUnit()
   }
   it should "return Host Not Found when server does not exist" in {
-    removeVolume(invalidServer,partition,volumeName).leftValueShouldIdempotentlyBe(HostNotFound)
+    removeVolume(invalidServer, partition, volumeName).leftValueShouldIdempotentlyBe(HostNotFound)
   }
   it should "return invalid partition when the given partition does not exist" in {
-    removeVolume(server,invalidPartition,volumeName).leftValueShouldIdempotentlyBe(InvalidPartition)
+    removeVolume(server, invalidPartition, volumeName).leftValueShouldIdempotentlyBe(InvalidPartition)
   }
   it should "return success when when volume does not exist" in {
-    removeVolume(server,partition,invalidVolumeName).rightValueShouldIdempotentlyBeUnit()
+    removeVolume(server, partition, invalidVolumeName).rightValueShouldIdempotentlyBeUnit()
   }
 
   "addSite" should "create a replication site for the given volume successfully" in {
     createVolume(server, partition, volumeName, 5.mebibytes).rightValue.shouldBe(())
-    addSite(server,partition,volumeName).rightValueShouldIdempotentlyBeUnit()
+    addSite(server, partition, volumeName).rightValueShouldIdempotentlyBeUnit()
   }
   it should "return error when the volumeName read/write does not exist" in {
-    addSite(server,partition,invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
+    addSite(server, partition, invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
   it should "return Host Not Found when server does not exist" in {
-    addSite(invalidServer,partition,volumeName).leftValueShouldIdempotentlyBe(HostNotFound)
+    addSite(invalidServer, partition, volumeName).leftValueShouldIdempotentlyBe(HostNotFound)
   }
   it should "return invalid partition when the given partition does not exist" in {
-    addSite(server,invalidPartition,volumeName).leftValueShouldIdempotentlyBe(InvalidPartition)
+    addSite(server, invalidPartition, volumeName).leftValueShouldIdempotentlyBe(InvalidPartition)
   }
 
   "releaseVolume" should "release volume normally" in {
@@ -75,10 +76,10 @@ class VolumeSpec extends FlatSpec with TestUtils {
   }
 
   "volumeExist" should "return success idempotently when volume exists" in {
-    volumeExists(volumeName).rightValueShouldIdempotentlyBe(())
+    volumeExists(volumeName, server).rightValue.shouldBe(())
   }
   it should "return error when volume does not exist" in {
-    volumeExists(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
+    volumeExists(invalidVolumeName, server).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
 
   "backupVolume" should "return success when backup volume is successfully created" in {
@@ -87,7 +88,6 @@ class VolumeSpec extends FlatSpec with TestUtils {
   it should "return error when the target volume does not exist" in {
     backupVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
-
 
 
 }

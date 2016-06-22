@@ -10,20 +10,22 @@ object AFSUtils {
     val e = new Expect(s"aklog -d $options", defaultUnknownError[Long])
     e.expect
       .when("aklog: ([^\n]+)".r)
-        .returning(m => Left(UnknownError(m.group(1))))
+      .returning(m => Left(UnknownError(m.group(1))))
       .when("""Id (\d+)""".r)
-        .returning(m => Right(m.group(1).toLong))
+      .returning(m => Right(m.group(1).toLong))
     e
   }
+
   def displayTokens(options: String = ""): Expect[Seq[Token]] = {
     val e = new Expect(s"tokens $options", Seq.empty[Token])
     e.expect
       .when("""(?s)(.+?)(?=\s+--End of list--)""".r)
-        .returning { m =>
-          m.group(1).split('\n').flatMap(Token.fromString).toSeq
-        }
+      .returning { m =>
+        m.group(1).split('\n').flatMap(Token.fromString).toSeq
+      }
     e
   }
+
   def destroyTokens(): Expect[Unit] = new Expect(s"unlog", ())
 
 
@@ -31,10 +33,12 @@ object AFSUtils {
     expectBlock.when("You don't have the required access rights")
       .returning(Left(InsufficientPermissions))
   }
+
   def invalidDirectory[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
     expectBlock.when("File '[^']+' doesn't exist".r)
       .returning(Left(InvalidDirectory))
   }
+
   def unknownError[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
     expectBlock.when("(.+)$".r)
       .returning(m => Left(UnknownError(m.group(1))))
@@ -64,7 +68,6 @@ object AFSUtils {
     expectBlock.when("VLDB: no such entry".r)
       .returning(Left(NonExistingVolume))
   }
-
 
 
 }

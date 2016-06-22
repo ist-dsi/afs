@@ -2,12 +2,12 @@ package pt.tecnico.dsi.afs
 
 import java.io.{File, FileOutputStream}
 
-import org.scalatest.FlatSpec
+import org.scalatest.{FlatSpec, Matchers}
 import squants.information.InformationConversions._
 
 import scala.util.Random
 
-class QuotaSpec extends FlatSpec with TestUtils {
+class QuotaSpec extends FlatSpec with TestUtils with Matchers{
   val afs = new AFS()
   import afs._
 
@@ -22,18 +22,20 @@ class QuotaSpec extends FlatSpec with TestUtils {
   }
   it should "return the quota and the used size" in {
     val Quota(_, quotaBefore, usedBefore) = listQuota(rootCellFile).rightValue
-
     val newFile = new File(rootCellFile, randomFile)
-    val fileSize = 1.kibibytes
+    val fileSize = 10.kibibytes
     val outputStream = new FileOutputStream(newFile)
-    val data = Array.ofDim[Byte](fileSize.value.toInt)
+    val data = Array.ofDim[Byte](fileSize.toBytes.toInt)
     Random.nextBytes(data)
     outputStream.write(data)
     outputStream.close()
+    // This test is affected by some other test
+    // TODO create a partitition dedicated to this test
+    // TODO https://github.com/sbt/sbt/issues/882
 
     listQuota(rootCellFile).idempotentRightValue { case Quota(_, quota, used) =>
-      quota shouldBe quotaBefore
-      used shouldBe (usedBefore + fileSize)
+      quota.toKibibytes.toInt shouldBe quotaBefore.toKibibytes.toInt
+      used.toKibibytes.toInt shouldBe ((usedBefore + fileSize).toKibibytes.toInt +- 1)
     }
   }
 

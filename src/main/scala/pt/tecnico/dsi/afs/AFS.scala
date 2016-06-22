@@ -18,7 +18,12 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   import settings._
 
   //region <FS commands>
-  /** */
+  /**
+    * For more details see "man fs_listquota"
+    *
+    * @param directory
+    * @return
+    */
   def listQuota(directory: File): Expect[Either[ErrorCase, Quota]] = {
     val dir = directory.getPath
     val e = new Expect(s"fs listquota -path $dir", defaultUnknownError[Quota])
@@ -37,6 +42,13 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * For more details see "man fs_setquota"
+    *
+    * @param directory
+    * @param quota
+    * @return
+    */
   def setQuota(directory: File, quota: Information): Expect[Either[ErrorCase, Unit]] = {
     require((quota > 0.kibibytes && quota <= 2.tebibytes) || quota.value.isPosInfinity,
       "new quota must be ]0 Kib, 2 Tib] ∪ +∞")
@@ -46,8 +58,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
       // TODO permissions not tested
       .addWhen(insufficientPermission)
       .addWhen(invalidDirectory)
-      .addWhen(successOnEndOfFile)
       .addWhen(unknownError)
+      .addWhen(successOnEndOfFile)
     e
   }
 
@@ -58,7 +70,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * @return
     */
   def listMount(directory: File): Expect[Either[ErrorCase, String]] = {
-    val e = new Expect(s"fs lsmount ${directory.getPath}", defaultUnknownError[String])
+    val e = new Expect(s"fs lsmount -dir ${directory.getPath}", defaultUnknownError[String])
     e.expect
       .addWhen(insufficientPermission)
       .addWhen(invalidDirectory)
@@ -69,43 +81,94 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * For more details see "man fs_mkmount"
+    * @param directory
+    * @param volume
+    * @return
+    */
   def makeMount(directory: File, volume: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"fs mkmount -dir ${directory.getPath} -vol $volume", defaultUnknownError[Unit])
+    //@formatter:off
     e.expect
       .addWhen(insufficientPermission)
-      .when("File exists")
-      .returningExpect {
-        /*listMount(directory) transform {
-          case Left(NotAMountPoint) =>
-            //The existing directory is NOT a mount point. We must return an error.
-            Left(FileAlreadyExists)
-          case Right(v) if v.contains(volume) =>
-            //The existing directory is already a mount point to the volume we want
-            Right(())
-          case Left(l) => Left(l)
-          case Right(v) =>
-            //The existing directory is a mount point to another volume
-            //We must remove the existing mount point and then invoke makeMount again
-            removeMount(directory) transform {
-              case Right(()) => makeMount(directory)
-              case either => either
-            }
-        }*/
-        ???
-      }
+      .when(s"'${directory.getAbsolutePath}': File exists")
+      // when file exists it can have no mount point. we return FileAlreadyExists
+      // when file exist it can have the specified volume. we return Right()
+      // when file exists it can have a different volume. We need to remove the mount and create a new mount with the given volume
+        .returningExpect {
+          listMount(directory).transform {
+            case Right(d) =>
+              removeMount(directory).transform {
+                case Right(()) => makeMount(directory, volume)
+              } {
+                case Left(l) =>
+                  //logger.info(s"MakeMount.RemoveMount returned left $l")
+                  Left(l)
+              }
+          } {
+            case Left(NotAMountPoint) => Left(FileAlreadyExists)
+            case Left(l) =>
+              //logger.info(s"MakeMount returned left $l")
+              Left(l)
+            case Right(d) if d.contains(volume) => Right(())
+          }
+        }
       .when(s"volume $volume does not exist")
-      .returning(Left(InvalidVolume))
+        .returning(Left(InvalidVolume))
+      .addWhen(unknownError)
       .addWhen(successOnEndOfFile)
+    //@formatter:on
     e
   }
 
+  /**
+    * For more details see "man fs_rmmount"
+    *
+    * @param directory
+    * @return
+    */
   def removeMount(directory: File): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"fs rmmount -dir ${directory.getPath}", defaultUnknownError[Unit])
     e.expect
       .addWhen(invalidDirectory)
-      .returning(Right(())) //This makes it idempotent
-      .addWhen(successOnEndOfFile)
+      /*
+        flush afs caches to so that makeMount recnognizes that the mount point is free.
+        We use flushall instead of the other flush commands because the other commands did not work.
+      */
+      .returningExpect(flushAll())
       .addWhen(unknownError)
+      .when(EndOfFile)
+      .returningExpect(flushAll())
+    e
+  }
+
+  /**
+    * Forces the Cache Manager to update volume information
+    * see "man fs_checkvolumes"
+    *
+    * @return
+    */
+  def checkVolumes(): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"fs checkvolumes", defaultUnknownError[Unit])
+    e.expect
+      .when("All volumeID/name mappings checked.")
+      .returning(Right(()))
+      .addWhen(unknownError)
+    e
+  }
+
+  /**
+    * Forces the Cache Manager to update volume information
+    * see "fs help"
+    *
+    * @return
+    */
+  def flushAll(): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"fs flushall", defaultUnknownError[Unit])
+    e.expect
+      .addWhen(unknownError)
+      .addWhen(successOnEndOfFile)
     e
   }
 
@@ -128,21 +191,26 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
           |((?:\s+[\w:.]+ \w+\n?)+)
           |(?:Negative rights:
           |((?:\s+[\w:.]+ \w+\n?)+))?""").stripMargin.r) //user or group follow the format "system:user1"
-      .returning { m: Match =>
-      val normalPermissions = m.group(1).split('\n').map { acl =>
-        val Array(userOrGroup, permissionAcl, _*) = acl.trim.split(" ")
-        (userOrGroup, Permission(permissionAcl))
-      }.toMap
-      val negativePermission = Option(m.group(2)).map { g => g.split('\n').map { acl =>
-        val Array(userOrGroup, permissionAcl, _*) = acl.trim.split(" ")
-        (userOrGroup, Permission(permissionAcl))
-      }.toMap
-      }
+      .returning {
+      m: Match =>
+        val normalPermissions = m.group(1).split('\n').map {
+          acl =>
+            val Array(userOrGroup, permissionAcl, _*) = acl.trim.split(" ")
+            (userOrGroup, Permission(permissionAcl))
+        }.toMap
+        val negativePermission = Option(m.group(2)).map {
+          g => g.split('\n').map {
+            acl =>
+              val Array(userOrGroup, permissionAcl, _*) = acl.trim.split(" ")
+              (userOrGroup, Permission(permissionAcl))
+          }.toMap
+        }
 
-      val ret = (normalPermissions, negativePermission.getOrElse(Map()))
-      logger.info(ret.toString)
-      Right(ret)
+        val ret = (normalPermissions, negativePermission.getOrElse(Map()))
+        Right(ret)
     }
+      .addWhen(unknownError)
+
     e
   }
 
@@ -157,24 +225,19 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     */
   def setACL(directory: File, ACLs: Map[String, Permission], negative: Boolean = false): Expect[Either[ErrorCase, Unit]] = {
     val ACLstring = ACLs.map(t => t._1 + " " + t._2.acl).mkString(" ")
-    val cmd = s"fs setacl -dir ${directory.getPath} -acl $ACLstring" + (if(negative) " -negative" else "")
+    val cmd = s"fs setacl -dir ${
+      directory.getPath
+    } -acl $ACLstring" + (if (negative) " -negative" else "")
     logger.debug(cmd)
     val e = new Expect(cmd, defaultUnknownError[Unit])
     e.expect
       .addWhen(invalidDirectory)
       .when("Tried to add non-existent user to access control list")
       .returning(Left(InvalidUserOrGroupName))
-        .when("You can not change a backup or readonly volume".r)
-        .returning(Left(CanNotChangeReadOnlyVolume))
-      .when(EndOfFile)
-      .returning(Right(()))
-    e
-  }
-
-  def checkVolumes(): Expect[Either[ErrorCase, Unit]] = {
-    val e = new Expect(s"fs checkvolumes", defaultUnknownError[Unit])
-    e.expect("All volumeID/name mappings checked.")
-      .returning(Right(()))
+      .when("You can not change a backup or readonly volume".r)
+      .returning(Left(CanNotChangeReadOnlyVolume))
+      .addWhen(unknownError)
+      .addWhen(successOnEndOfFile)
     e
   }
 
@@ -187,13 +250,16 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * @param username
     * @return
     */
-  def getUserId(username: String): Expect[Either[ErrorCase, String]] = {
-    val e = new Expect(s"pts examine -nameorid $username", defaultUnknownError[String])
+  def getGroupOrUserId(username: String): Expect[Either[ErrorCase, Int]] = {
+    val e = new Expect(s"pts examine -nameorid $username", defaultUnknownError[Int])
     e.expect
       .when("""id: (\d+)""".r)
-      .returning { m => Right(m.group(1)) }
+      .returning {
+        m => Right(m.group(1).toInt)
+      }
       .when("""User or group doesn't exist""".r)
       .returning(Left(UnknownUserName))
+      .addWhen(unknownError)
     e
   }
 
@@ -203,46 +269,56 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * @param id
     * @return
     */
-  def getUserName(id: String): Expect[Either[ErrorCase, String]] = {
+  def getGroupOrUserName(id: Int): Expect[Either[ErrorCase, String]] = {
     val e = new Expect(s"pts examine -nameorid $id", defaultUnknownError[String])
     e.expect
       .when("""Name: ([\w\.]+),""".r)
-      .returning { m =>
-        Right(m.group(1))
+      .returning {
+        m => Right(m.group(1))
       }
-      .when("""User or group doesn't exist""".r)
-      .returning(Left(UnknownUserId))
+      .when("pts: User or group doesn't exist")
+      .returning(Left(UnknownUserOrGroupId))
+      .addWhen(unknownError)
     e
   }
 
   def createUser(name: String, afsId: Int): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"pts createuser -name $name -id $afsId", defaultUnknownError[Unit])
     e.expect
-      .when(s"Entry for id already exists ; unable to create user '$name' with id '$afsId'")
+      .when(s"Entry for id already exists ; unable to create user $name with id $afsId")
       .returning(Left(AFSIdAlreadyTaken))
-      .when(s"Badly formed name (group prefix doesn't match owner?) ; unable to create user '$name' with id '$afsId'")
-      .returning(Left(InvalidUserName))
-      .when(s"User '$name' has id '$afsId'")
+      .when(s"Entry for name already exists ; unable to create user $name with id $afsId")
+      .returning(Left(UserNameAlreadyTaken))
+      .when(s"Badly formed name (group prefix doesn't match owner?) ; unable to create user $name with id $afsId")
+      .returning(Left(BadlyFormedUserName))
+      .when(s"User $name has id $afsId")
       .returning(Right(()))
+      .addWhen(unknownError)
     e
   }
 
   def createGroup(name: String, owner: String): Expect[Either[ErrorCase, Int]] = {
     val e = new Expect(s"pts creategroup -name $name -owner $owner", defaultUnknownError[Int])
     e.expect
-      .when(s"""User or group doesn't exist ; unable to create group $name with id -?\d+ owned by $owner'""".r)
-      .returning(Left(InvalidUserName))
-      .when(s"""group $name has id (-\d+)""".r)
-      .returning { m: Match => Right(m.group(1).toInt) }
+      .when(s"User or group doesn't exist ; unable to create group $name with id -?\\d+ owned by '$owner'".r)
+      .returning(Left(UnknownUserName))
+      .when(s"Entry for name already exists ; unable to create group $name with id -?\\d+ owned by '$owner'".r)
+      .returning(Left(GroupNameAlreadyTaken))
+      .when(s"group $name has id (-\\d+)".r)
+      .returning {
+        m: Match => Right(m.group(1).toInt)
+      }
+      .addWhen(unknownError)
     e
   }
 
   def deleteUserOrGroup(name: String): Expect[Either[ErrorCase, Unit]] = {
-    //Should we also call fs cleanacl?
+    //Should we also call fs cleanacl? But fs cleanacl target is an afs directory.
+    //Should we call fs cleanacl for directory that has the user or group in the ACL's
     val e = new Expect(s"pts delete -nameorid $name", defaultUnknownError[Unit])
     e.expect
-      .when(s"User or group doesn't exist so couldn't look up id for $name")
-      .returning(Left(InvalidUserOrGroupName))
+      .when(s"User or group doesn't exist")
+      .returning(Right(()))
       .when(EndOfFile)
       .returning(Right(()))
     e
@@ -251,8 +327,10 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   def addUserToGroup(name: String, group: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"pts adduser -user $name -group $group", defaultUnknownError[Unit])
     e.expect
-      .when(s"User or group doesn't exist ; unable to add user $name to group $group")
+      .when(s"User or group doesn't exist")
       .returning(Left(InvalidUserOrGroupName))
+      .when("Entry for id already exists")
+      .returning(Right(()))
       .when(EndOfFile)
       .returning(Right(()))
     e
@@ -261,13 +339,23 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   def removeUserFromGroup(name: String, group: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new Expect(s"pts removeuser -user $name -group $group", defaultUnknownError[Unit])
     e.expect
-      .when(s"User or group doesn't exist ; unable to remove user $name to group $group")
-      .returning(Left(InvalidUserOrGroupName))
+      .when("User or group doesn't exist")
+      // there is is no distinction if it is the user or the group or both that do not exist
+      //.returning(Left(InvalidUserOrGroupName))
+      .returning {
+      logger.debug("removeUserFromGroup return success but user or group didn't exist")
+      Right(())
+    }
       .when(EndOfFile)
       .returning(Right(()))
     e
   }
 
+  /**
+    *
+    * @param name name of a group or user
+    * @return
+    */
   def membership(name: String): Expect[Either[ErrorCase, Set[String]]] = {
     val e = new Expect(s"pts membership -nameorid $name", defaultUnknownError[Set[String]])
     e.expect
@@ -275,20 +363,23 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
       .returning(Left(InvalidUserOrGroupName))
       //If $name is a user name or user afs id
       .when(
-      s"""Groups [^ ]+ id: \d+ is a member of:
-          |(  [^\n]+\n?)+""".stripMargin.r)
-      .returning { m: Match =>
-        val groups = m.group(0).split('\n').map(_.trim).toSet
-        Right(groups)
+      """Groups [^ ]+ \(id: \d+\) is a member of:
+        |((  [^\n]+\n?)+)""".stripMargin.r)
+      .returning {
+        m: Match =>
+          val groups = m.group(1).split('\n').map(_.trim).toSet
+          Right(groups)
       }
       //If $name is a group name or group afs id
       .when(
-      s"""Members of group [^ ]+ id: -\d+ are:
-          |(  [^\n]+\n?)+""".stripMargin.r)
-      .returning { m: Match =>
-        val users = m.group(0).split('\n').map(_.trim).toSet
-        Right(users)
+      """Members of [^ ]+ \(id: -?\d+\) are:
+        |((  [^\n]+\n?)+)""".stripMargin.r)
+      .returning {
+        m: Match =>
+          val users = m.group(1).split('\n').map(_.trim).toSet
+          Right(users)
       }
+      .addWhen(unknownError)
     e
   }
 
@@ -296,15 +387,16 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     val e = new Expect(s"pts listentries -groups", defaultUnknownError[Seq[(String, Int, Int, Int)]])
     e.expect
       .when(
-        s"""Name\tID\tOwner\tCreator
-            |([^\n]+\n?)+""".stripMargin.r)
-      .returning { m: Match =>
-        val groups = m.group(0).split('\n').map { groupString =>
-          val Array(name, id, owner, creator) = groupString.trim.split("""\s+""")
-          (name, id.toInt, owner.toInt, creator.toInt)
-        }.toSeq
-        Right(groups)
+        """Name\s+ID\s+Owner\s+Creator
+          |(([^\n]+\n?)+)""".stripMargin.r)
+      .returning { m =>
+          val groups = m.group(1).split('\n').map { groupString =>
+            val Array(name, id, owner, creator) = groupString.trim.split("""\s+""")
+            (name, id.toInt, owner.toInt, creator.toInt)
+          }.toSeq
+          Right(groups)
       }
+      .addWhen(unknownError)
     e
   }
 
@@ -325,7 +417,9 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     // TODO turn method idempotent
     // TODO If called twice with same name(server,partition), check that quota is the same
     val e = new Expect(
-      s"vos create -server $server -partition $partition -name $name -maxquota ${maxQuota.toKibibytes.toLong}K",
+      s"vos create -server $server -partition $partition -name $name -maxquota ${
+        maxQuota.toKibibytes.toLong
+      }K",
       defaultUnknownError[Unit])
     e.expect
       .addWhen(hostNotFound)
@@ -358,7 +452,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e.expect
       .addWhen(hostNotFound)
       .addWhen(invalidPartition)
-      .when("Can't find volume")
+      .when("Can't find volume") // makes it idempotent
       .returning(Right(()))
       .when("Volume .+ deleted".r)
       .returning(Right(()))
@@ -380,7 +474,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
       .addWhen(hostNotFound)
       .addWhen(invalidPartition)
       .addWhen(nonExistingVolume)
-      .when("RO already exists on partition".r)
+      .when("RO already exists on partition".r) // makes it idempotent
       .returning(Right(()))
       .when("Added replication site".r)
       .returning(Right(()))
@@ -424,14 +518,16 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * Check if the given volume exists
     *
     * @param name
+    * @param server
     * @return
     */
-  def volumeExists(name: String): Expect[Either[ErrorCase, Unit]] = {
-    val e = new Expect(s"vos listvldb -name $name", defaultUnknownError[Unit])
+  def volumeExists(name: String, server: String): Expect[Either[ErrorCase, Unit]] = {
+    val e = new Expect(s"vos listvldb -name $name -server $server", defaultUnknownError[Unit])
     e.expect
       .addWhen(nonExistingVolume)
-      .when("(.+)".r)
+      .when(name.r)
       .returning(Right(()))
+      .addWhen(unknownError)
     e
   }
 
@@ -447,6 +543,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
       .addWhen(nonExistingVolume)
       .when("Created backup volume".r)
       .returning(Right(()))
+      .addWhen(unknownError)
     e
   }
 

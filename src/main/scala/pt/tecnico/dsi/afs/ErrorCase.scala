@@ -2,13 +2,16 @@ package pt.tecnico.dsi.afs
 
 trait ErrorCase
 
+// PTS errors
 case object InvalidDirectory extends ErrorCase
 case object InvalidVolume extends ErrorCase
 case object InvalidUserOrGroupName extends ErrorCase
-case object InvalidUserName extends ErrorCase
+case object BadlyFormedUserName extends ErrorCase
 case object AFSIdAlreadyTaken extends ErrorCase
+case object UserNameAlreadyTaken extends ErrorCase
+case object GroupNameAlreadyTaken extends ErrorCase
 case object UnknownUserName extends ErrorCase
-case object UnknownUserId extends ErrorCase
+case object UnknownUserOrGroupId extends ErrorCase
 case object CouldNotObtainAFSToken extends ErrorCase
 // set acl
 case object CanNotChangeReadOnlyVolume extends ErrorCase

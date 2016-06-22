@@ -16,8 +16,8 @@
     </appender>
 
     <logger name="org.scalatest" level="DEBUG" />
-    <logger name="work.martins.simon.expect" level="DEBUG" />
-    <logger name="pt.tecnico.dsi.afs" level="DEBUG" />
+    <logger name="work.martins.simon.expect" level="OFF" />
+    <logger name="pt.tecnico.dsi.afs" level="INFO" />
 
     <root level="DEBUG">
         <!-- <appender-ref ref="FILE"/> -->
