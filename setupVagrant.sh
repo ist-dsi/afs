@@ -3,7 +3,9 @@
 # Install the latest version of VirtualBox
 curl -L http://download.virtualbox.org/virtualbox/5.0.20/virtualbox-5.0_5.0.20-106931~Ubuntu~trusty_amd64.deb > virtualbox.deb
 dpkg --force-confnew -i virtualbox.deb
-sudo install kernel-devel gcc
+
+apt-get update
+apt-get kernel-devel gcc
 VBoxManage --version
 
 # Install the latest version of Vagrant
