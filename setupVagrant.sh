@@ -5,6 +5,7 @@ curl -L http://download.virtualbox.org/virtualbox/5.0.20/virtualbox-5.0_5.0.20-1
 dpkg --force-confnew -i virtualbox.deb
 
 echo "Setup vboxdrv::::::::::::::::::"
+apt-get install build-essential linux-headers-amd64
 /etc/init.d/vboxdrv setup
 echo "cat:::::::::::::::::"
 cat /var/log/vbox-install.log
