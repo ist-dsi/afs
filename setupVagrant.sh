@@ -6,6 +6,8 @@ dpkg --force-confnew -i virtualbox.deb
 
 echo "Setup vboxdrv::::::::::::::::::"
 /etc/init.d/vboxdrv setup
+echo "cat:::::::::::::::::"
+cat /var/log/vbox-install.log
 echo "--version:::::::::::::::::::"
 VBoxManage --version
 
