@@ -6,7 +6,7 @@ dpkg --force-confnew -i virtualbox.deb
 
 echo "Setup vboxdrv::::::::::::::::::"
 apt-get update
-apt-get install build-essential linux-headers-amd64 linux-generic linux-headers-generic
+apt-get install build-essential linux-headers
 /etc/init.d/vboxdrv setup
 echo "cat:::::::::::::::::"
 cat /var/log/vbox-install.log
