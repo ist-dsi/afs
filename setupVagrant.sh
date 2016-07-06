@@ -4,7 +4,9 @@
 curl -L http://download.virtualbox.org/virtualbox/5.0.20/virtualbox-5.0_5.0.20-106931~Ubuntu~trusty_amd64.deb > virtualbox.deb
 dpkg --force-confnew -i virtualbox.deb
 
+echo "Setup vboxdrv::::::::::::::::::"
 /etc/init.d/vboxdrv setup
+echo "--version:::::::::::::::::::"
 VBoxManage --version
 
 # Install the latest version of Vagrant
