@@ -29,7 +29,6 @@ object Permission {
       }
   }
 }
-
 sealed trait Permission extends Serializable {
   protected[afs] def acl: String
 
@@ -53,19 +52,12 @@ sealed trait Permission extends Serializable {
 }
 
 sealed abstract class SinglePermission(protected[afs] val acl: String) extends Permission
-
 case object Administer extends SinglePermission("a")
-
 case object Delete extends SinglePermission("d")
-
 case object Insert extends SinglePermission("i")
-
 case object Lock extends SinglePermission("k")
-
 case object Lookup extends SinglePermission("l")
-
 case object Read extends SinglePermission("r")
-
 case object Write extends SinglePermission("w")
 
 object MultiplePermissions {
@@ -83,7 +75,6 @@ object MultiplePermissions {
     }
   }
 }
-
 sealed class MultiplePermissions(val permissions: Set[SinglePermission]) extends Permission {
   protected[afs] val acl = permissions.map(_.acl).mkString
 
@@ -99,22 +90,15 @@ sealed class MultiplePermissions(val permissions: Set[SinglePermission]) extends
     state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
   }
 }
-
 case object AllPermissions extends MultiplePermissions(Set(Administer, Delete, Insert, Lock, Lookup, Read, Write)) {
   override protected[afs] val acl: String = "all"
 }
-
-/**
-  * This permission is only present in a map of permissions
-  */
 case object NoPermissions extends MultiplePermissions(Set.empty) {
   override protected[afs] val acl: String = "none"
 }
-
 case object FullWrite extends MultiplePermissions(Set(Delete, Insert, Lock, Lookup, Read, Write)) {
   override protected[afs] val acl: String = "write"
 }
-
 case object FullRead extends MultiplePermissions(Set(Read, Lookup)) {
   override protected[afs] val acl: String = "read"
 }
