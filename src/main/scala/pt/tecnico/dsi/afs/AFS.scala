@@ -12,6 +12,12 @@ import work.martins.simon.expect.core.Expect
 import work.martins.simon.expect.fluent.{Expect ⇒ FluentExpect, fluentToCoreExpect}
 import pt.tecnico.dsi.afs.AFSUtils._
 
+/**
+  * @define idempotentOperation
+  *  This operation is idempotent, that is, if this method is invoked twice for the same principal
+  *  it will be successful in both invocations. This means that this operation can be repeated or retried as
+  *  often as necessary without causing unintended effects.
+  */
 class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   def this(config: Config) = this(new Settings(config))
 
@@ -19,10 +25,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
 
   //region <FS commands>
   /**
-    * For more details see "man fs_listquota"
+    * Lists quota information for the volume associated with the given directory.
+    * Quota is in kibibytes.
     *
-    * @param directory
-    * @return
+    * @param directory directory to be inspected
+    * @return an Expect that returns the quota value for the given directory
     */
   def listQuota(directory: File): Expect[Either[ErrorCase, Quota]] = {
     val dir = directory.getPath
@@ -43,10 +50,10 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * For more details see "man fs_setquota"
+    * Sets the quota for the volume containing the given directory
     *
-    * @param directory
-    * @param quota
+    * @param directory directory whose volume quota will be changed
+    * @param quota the new quota. The quota is required to be in the interval ]0 Kib, 2 Tib] ∪ +∞
     * @return
     */
   def setQuota(directory: File, quota: Information): Expect[Either[ErrorCase, Unit]] = {
@@ -55,7 +62,6 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     val newQuota = if (quota.value.isPosInfinity) "0" else s"${quota.toKibibytes.round}"
     val e = new FluentExpect(s"fs setquota -path ${directory.getPath} -max ${newQuota}K", defaultUnknownError[Unit])
     e.expect
-      // TODO permissions not tested
       .addWhen(insufficientPermission)
       .addWhen(invalidDirectory)
       .addWhen(unknownError)
@@ -64,10 +70,16 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * For more details see "man fs_lsmount"
+    * Returns the volume name for which the directory is the mount point.
+    * The string containing of the volume name is of the form:
+    * - A `#` precedes the volume name for a regular mount point
+    * - A `%` precedes the volume name for a read/write mount point
+    * - A cell name and `:` follow the `#` or `%` and precede the volume name
+    * For example:
+    *   `#stateu.edu:root.cell`
     *
-    * @param directory
-    * @return
+    * @param directory directory to be inspected
+    * @return volume name
     */
   def listMount(directory: File): Expect[Either[ErrorCase, String]] = {
     val e = new FluentExpect(s"fs lsmount -dir ${directory.getPath}", defaultUnknownError[String])
@@ -82,10 +94,14 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * For more details see "man fs_mkmount"
-    * @param directory
-    * @param volume
-    * @return
+    * Creates a mount point for a volume in a given directory.
+    * This operation is idempotent.
+    * If the mount point already exists, and it is mount point of a different volume it will first try removing
+    * the current mount and then creating the mount point for the given arguments.
+    *
+    * @param directory directory where volume is mounted
+    * @param volume volume to be mounted
+    * @return Unit if successful
     */
   def makeMount(directory: File, volume: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"fs mkmount -dir ${directory.getPath} -vol $volume", defaultUnknownError[Unit])
@@ -121,10 +137,10 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * For more details see "man fs_rmmount"
+    * Removes the mount point at a given directory and then flushes all caches.
     *
-    * @param directory
-    * @return
+    * @param directory the directory is supposed to be the mount point
+    * @return Unit when successful
     */
   def removeMount(directory: File): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"fs rmmount -dir ${directory.getPath}", defaultUnknownError[Unit])
@@ -141,9 +157,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
 
   /**
     * Forces the Cache Manager to update volume information
-    * see "man fs_checkvolumes"
     *
-    * @return
+    * @return Unit when successful
     */
   def checkVolumes(): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"fs checkvolumes", defaultUnknownError[Unit])
@@ -155,10 +170,9 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * Forces the Cache Manager to update volume information
-    * see "fs help"
+    * Flushes all data from the AFS caches
     *
-    * @return
+    * @return Unit on successfull
     */
   def flushAll(): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"fs flushall", defaultUnknownError[Unit])
@@ -170,11 +184,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
 
   /**
     * Returns the access control list (ACL) associated with the specified file, directory, or symbolic link.
-    * Check 'man fs_listacl"
     *
-    * @param directory File representing the specified target
-    * @return In case of success, a Right that includes Map from user to granted permissions.
-    *         In case of invalid directory it returns Left(InvalidDirectory)
+    * @param directory directory to be inspected
+    * @return In case of success, a tuple two maps of permissions, that is a map from `user` to `permissions`.
+    *         The first map contains the positive permissions and the second map contains the negative permissions
+    *
     */
   def listACL(directory: File): Expect[Either[ErrorCase, (Map[String, Permission], Map[String, Permission])]] = {
     val dir = directory.getPath
@@ -207,12 +221,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   /**
     * Adds and overrides the access control list (ACL) associated with the specified file, directory or symbolic link.
     * If negative flag is true then the negatives rights are add instead of the normal rights.
-    *
-    * Check 'man fs_listacl"
+
     *
     * @param directory File representing the specified target
-    * @param ACLs
-    * @return
+    * @param ACLs maps of permissions, from user to permissions
+    * @return Unit if successful
     */
   def setACL(directory: File, ACLs: Map[String, Permission], negative: Boolean = false): Expect[Either[ErrorCase, Unit]] = {
     val ACLstring = ACLs.map(t => t._1 + " " + t._2.acl).mkString(" ")
@@ -236,8 +249,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   /**
     * Get the user's id for the given username
     *
-    * @param username
-    * @return
+    * @param username username
+    * @return Id of the given username
     */
   def getGroupOrUserId(username: String): Expect[Either[ErrorCase, Int]] = {
     val e = new FluentExpect(s"pts examine -nameorid $username", defaultUnknownError[Int])
@@ -253,8 +266,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   /**
     * Get the user name for the given user's ids
     *
-    * @param id
-    * @return
+    * @param id user id
+    * @return username of the given user id
     */
   def getGroupOrUserName(id: Int): Expect[Either[ErrorCase, String]] = {
     val e = new FluentExpect(s"pts examine -nameorid $id", defaultUnknownError[String])
@@ -267,6 +280,13 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * Create a user for the given name and id
+    * @param name username of the new user
+    * @param afsId id of the new user
+    * @return Unit if successful
+    *
+    */
   def createUser(name: String, afsId: Int): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"pts createuser -name $name -id $afsId", defaultUnknownError[Unit])
     e.expect
@@ -282,6 +302,13 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * Create group for the given name and owner
+    *
+    * @param name name of the new group
+    * @param owner username of the user creating the group
+    * @return Unit if successful
+    */
   def createGroup(name: String, owner: String): Expect[Either[ErrorCase, Int]] = {
     val e = new FluentExpect(s"pts creategroup -name $name -owner $owner", defaultUnknownError[Int])
     e.expect
@@ -295,6 +322,12 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * Deletes a user or group with the given name
+    *
+    * @param name user or group name
+    * @return Unit if successful
+    */
   def deleteUserOrGroup(name: String): Expect[Either[ErrorCase, Unit]] = {
     //Should we also call fs cleanacl? But fs cleanacl target is an afs directory.
     //Should we call fs cleanacl for directory that has the user or group in the ACL's
@@ -307,6 +340,13 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * Adds a user to a group
+    *
+    * @param name name of the user to be added
+    * @param group name of the group
+    * @return Unit if successful
+    */
   def addUserToGroup(name: String, group: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"pts adduser -user $name -group $group", defaultUnknownError[Unit])
     e.expect
@@ -319,6 +359,13 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * Remove a user from a group
+    *
+    * @param name name of the user to be added
+    * @param group name of the group
+    * @return Unit if successful
+    */
   def removeUserFromGroup(name: String, group: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"pts removeuser -user $name -group $group", defaultUnknownError[Unit])
     e.expect
@@ -331,9 +378,10 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
+    * Returns the membership for a user or  group
     *
     * @param name name of a group or user
-    * @return
+    * @return set of groups to which the group or user belongs to.
     */
   def membership(name: String): Expect[Either[ErrorCase, Set[String]]] = {
     val e = new FluentExpect(s"pts membership -nameorid $name", defaultUnknownError[Set[String]])
@@ -360,6 +408,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     e
   }
 
+  /**
+    * Return the set of groups and their properties, in the form (name, id, owner, creator)
+    *
+    * @return the set of groups if successful
+    */
   def listGroups(): Expect[Either[ErrorCase, Seq[(String, Int, Int, Int)]]] = {
     val e = new FluentExpect(s"pts listentries -groups", defaultUnknownError[Seq[(String, Int, Int, Int)]])
     e.expect
@@ -388,11 +441,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     * @param partition name of the partition on the afs server in which the volume is being created
     * @param name      name of the volume being created
     * @param maxQuota  defines the maximum allowed quota, the minimum value is 1 kibibyte
-    * @return /TODO
+    * @return Unit when successful
     */
   def createVolume(server: String, partition: String, name: String, maxQuota: Information): Expect[Either[ErrorCase, Unit]] = {
-    // TODO turn method idempotent
-    // TODO If called twice with same name(server,partition), check that quota is the same
+    // TODO turn method idempotent, actually results in many conflicts
+    // If called twice with same name(server,partition), check that quota is the same
     val e = new FluentExpect(
       s"vos create -server $server -partition $partition -name $name -maxquota ${maxQuota.toKibibytes.toLong}K",
       defaultUnknownError[Unit])
@@ -436,11 +489,15 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
+    * Defines a new read-only site (partition on a file server machine, specified by the server and partition
+    * arguments) in the Volume Location Database (VLDB) entry of the read/write volume specified by the `name` argument.
     *
-    * @param server
-    * @param partition
-    * @param name
-    * @return
+    * This function is idempotent.
+    *
+    * @param server hostname of the file server where the read-only volume is to reside
+    * @param partition partition where the read-only is to reside
+    * @param name name or id of the read/write volume
+    * @return Unit when successful
     */
   def addSite(server: String, partition: String, name: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"vos addsite -server $server -partition $partition -id $name",
@@ -458,10 +515,12 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * Idempotent function that releases an AFS volume (see "man vos release")
+    * Updates read-only volumes to match the read/write source volume
     *
-    * @param name
-    * @return
+    * This function is idempotent.
+    *
+    * @param name volume name
+    * @return Unit when successful
     */
   def releaseVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"vos release -id $name", defaultUnknownError[Unit])
@@ -476,8 +535,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   /**
     * Checks if server exist and is On-line
     *
-    * @param name
-    * @return
+    * @param name volume name
+    * @return Unit when successful
     */
   def examineVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"vos examine -id $name", defaultUnknownError[Unit])
@@ -490,11 +549,11 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * Check if the given volume exists
+    * Check if a volume exists
     *
-    * @param name
-    * @param server
-    * @return
+    * @param name volume name
+    * @param server hostname of the file server machine
+    * @return Unit when volume exists
     */
   def volumeExists(name: String, server: String): Expect[Either[ErrorCase, Unit]] = {
     val e = new FluentExpect(s"vos listvldb -name $name -server $server", defaultUnknownError[Unit])
@@ -507,9 +566,9 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
   }
 
   /**
-    * Creates a backup volume according to "man vos_backup"
+    * Creates a backup volume for a read/write volume
     *
-    * @param name
+    * @param name read/write volume
     * @return Unit when the volume was created successfully
     */
   def backupVolume(name: String): Expect[Either[ErrorCase, Unit]] = {
