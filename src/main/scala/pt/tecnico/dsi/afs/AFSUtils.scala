@@ -1,7 +1,7 @@
 package pt.tecnico.dsi.afs
 
 import work.martins.simon.expect.EndOfFile
-import work.martins.simon.expect.fluent.{Expect, ExpectBlock}
+import work.martins.simon.expect.fluent.{EndOfFileWhen, Expect, ExpectBlock, RegexWhen, StringWhen}
 
 object AFSUtils {
   def defaultUnknownError[T]: Either[ErrorCase, T] = Left(UnknownError())
@@ -29,42 +29,42 @@ object AFSUtils {
   def destroyTokens(): Expect[Unit] = new Expect(s"unlog", ())
 
 
-  def insufficientPermission[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def insufficientPermission[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): StringWhen[Either[ErrorCase, R]] = {
     expectBlock.when("You don't have the required access rights")
       .returning(Left(InsufficientPermissions))
   }
 
-  def invalidDirectory[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def invalidDirectory[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): RegexWhen[Either[ErrorCase, R]] = {
     expectBlock.when("File '[^']+' doesn't exist".r)
       .returning(Left(InvalidDirectory))
   }
 
-  def unknownError[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def unknownError[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): RegexWhen[Either[ErrorCase, R]] = {
     expectBlock.when("(.+)$".r)
       .returning(m => Left(UnknownError(m.group(1))))
   }
 
-  def notAMountPoint[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def notAMountPoint[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): StringWhen[Either[ErrorCase, R]] = {
     expectBlock.when(s"is not a mount point.")
       .returning(Left(NotAMountPoint))
   }
 
-  def successOnEndOfFile(expectBlock: ExpectBlock[Either[ErrorCase, Unit]]) = {
+  def successOnEndOfFile(expectBlock: ExpectBlock[Either[ErrorCase, Unit]]): EndOfFileWhen[Either[ErrorCase, Unit]] = {
     expectBlock.when(EndOfFile)
       .returning(Right(()))
   }
 
-  def hostNotFound[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def hostNotFound[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): RegexWhen[Either[ErrorCase, R]] = {
     expectBlock.when("not found in host table".r)
       .returning(Left(HostNotFound))
   }
 
-  def invalidPartition[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def invalidPartition[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): RegexWhen[Either[ErrorCase, R]] = {
     expectBlock.when("partition .+ does not exist".r)
       .returning(Left(InvalidPartition))
   }
 
-  def nonExistingVolume[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]) = {
+  def nonExistingVolume[R](expectBlock: ExpectBlock[Either[ErrorCase, R]]): RegexWhen[Either[ErrorCase, R]] = {
     expectBlock.when("VLDB: no such entry".r)
       .returning(Left(NonExistingVolume))
   }

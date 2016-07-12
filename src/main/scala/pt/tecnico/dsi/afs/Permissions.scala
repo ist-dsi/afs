@@ -17,7 +17,7 @@ object Permission {
     case s if s == FullWrite.acl => FullWrite
     case s if s == FullRead.acl => FullRead
     case s =>
-      val aclCharToPermission: Map[Char, SinglePermission] = AllPermissions.permissions.map(p => (p.acl.head, p)).toMap
+      val aclCharToPermission: Map[Char, SinglePermission] = AllPermissions.permissions.map(p => (p.acl.headOption.getOrElse('?'), p)).toMap
       //If s contains a char that does not correspond to a permission then that char will be ignored.
       //Which in the extreme case that every char does not correspond to a permission the NoPermission will be returned.
       //Because the result will be an empty.
@@ -78,7 +78,7 @@ object MultiplePermissions {
 sealed class MultiplePermissions(val permissions: Set[SinglePermission]) extends Permission {
   protected[afs] val acl = permissions.map(_.acl).mkString
 
-  override def toString = acl
+  override def toString: String = acl
 
   override def equals(other: Any): Boolean = other match {
     case that: MultiplePermissions => permissions == that.permissions
