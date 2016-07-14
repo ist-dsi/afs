@@ -92,3 +92,4 @@ releaseProcess := Seq[ReleaseStep](
   ReleaseStep(action = Command.process("sonatypeRelease", _)),
   pushChanges
 )
+
