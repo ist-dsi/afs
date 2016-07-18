@@ -3,6 +3,7 @@ package pt.tecnico.dsi.afs
 import java.io.File
 
 import com.typesafe.config.{Config, ConfigFactory, ConfigValueType}
+import work.martins.simon.expect.{Settings => ScalaExpectSettings}
 import work.martins.simon.expect.StringUtils.splitBySpaces
 
 import scala.collection.JavaConverters._
@@ -43,6 +44,22 @@ class Settings(config: Config = ConfigFactory.load()) {
 
   val cell = getString("cell")
   val cacheDir = new File(getString("cache-dir"))
+
+  val scalaExpectSettings = {
+    val path = "scala-expect"
+    if (afsConfig.hasPath(path)) {
+      val c = if (config.hasPath(path)) {
+        afsConfig.getConfig(path).withFallback(config.getConfig(path))
+      } else {
+        afsConfig.getConfig(path)
+      }
+      new ScalaExpectSettings(c.atPath(path))
+    } else if (config.hasPath(path)) {
+      new ScalaExpectSettings(config.getConfig(path).atPath(path))
+    } else {
+      new ScalaExpectSettings()
+    }
+  }
 
   override def toString: String = afsConfig.root.render
 }

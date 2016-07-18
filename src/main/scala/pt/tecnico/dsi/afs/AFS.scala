@@ -23,7 +23,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
 
   import settings._
 
-  //region <FS commands>
+    //region <FS commands>
   /**
     * Lists quota information for the volume associated with the given directory.
     * Quota is in kibibytes.

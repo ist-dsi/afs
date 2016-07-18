@@ -1,6 +1,6 @@
 organization := "pt.tecnico.dsi"
 name := "afs"
-version := "0.0.1"
+version := "0.0.2"
 
 val javaVersion = "1.8"
 initialize := {
