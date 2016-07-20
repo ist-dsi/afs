@@ -307,7 +307,7 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
     *
     * @param name name of the new group
     * @param owner username of the user creating the group
-    * @return Unit if successful
+    * @return Id of the group created
     */
   def createGroup(name: String, owner: String): Expect[Either[ErrorCase, Int]] = {
     val e = new FluentExpect(s"pts creategroup -name $name -owner $owner", defaultUnknownError[Int])

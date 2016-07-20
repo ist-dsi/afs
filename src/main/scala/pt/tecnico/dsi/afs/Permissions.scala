@@ -102,3 +102,4 @@ case object FullWrite extends MultiplePermissions(Set(Delete, Insert, Lock, Look
 case object FullRead extends MultiplePermissions(Set(Read, Lookup)) {
   override protected[afs] val acl: String = "read"
 }
+
