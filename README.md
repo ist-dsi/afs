@@ -15,7 +15,7 @@ A type-safe wrapper around the afs command suite for Scala.
 ## Install
 Add the following dependency to your `build.sbt`:
 ```sbt
-libraryDependencies += "pt.tecnico.dsi" %% "afs" % "0.0.1"
+libraryDependencies += "pt.tecnico.dsi" %% "afs" % "0.0.2"
 ```
 We use [semantic versioning](http://semver.org).
 
@@ -37,7 +37,7 @@ The scaladoc of the Settings class has examples explaining the different options
 
 ## How to test afs
 In the project root run `./test.sh`. This script will run `docker-compose up` inside the docker-afs folder.
-Be sure to have [docker](https://docs.docker.com/engine/installation/) and [docker-compose](https://docs.docker.com/compose/install/) installed on your computer.
+Be sure to have [vagrant](https://www.vagrantup.com/)
 
 ## Note on the docker-afs folder
 This folder is a [git fake submodule](http://debuggable.com/posts/git-fake-submodules:4b563ee4-f3cc-4061-967e-0e48cbdd56cb)

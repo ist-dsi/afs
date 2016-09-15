@@ -38,9 +38,7 @@ libraryDependencies ++= Seq(
   "joda-time" % "joda-time" % "2.9.3",
   //See http://stackoverflow.com/questions/13856266/class-broken-error-with-joda-time-using-scala
   //as to why this library must be included
-  "org.joda" % "joda-convert" % "1.8.1",
-
-  "pt.tecnico.dsi" %% "kadmin" % "4.5.0" % "test"
+  "org.joda" % "joda-convert" % "1.8.1"
 )
 resolvers += Resolver.typesafeRepo("releases")
 
