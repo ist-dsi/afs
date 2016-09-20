@@ -2,12 +2,16 @@ package pt.tecnico.dsi.afs
 
 import java.io.{File, FileOutputStream}
 
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{Assertion, AsyncFlatSpec, FlatSpec, Matchers}
 import squants.information.InformationConversions._
 
+import scala.concurrent.{Await, Future}
+import scala.language.postfixOps
+import scala.concurrent.duration._
 import scala.util.Random
 
-class QuotaSpec extends FlatSpec with TestUtils with Matchers{
+
+class QuotaSpec extends AsyncFlatSpec with TestUtils{
   val afs = new AFS()
   import afs._
 
@@ -16,26 +20,28 @@ class QuotaSpec extends FlatSpec with TestUtils with Matchers{
   val randomFile = "random.data"
   val volumeName = "root.cell"
 
-
   "listquota" should "return InvalidDirectory when directory does not exist" in {
     listQuota(nonExistingFile) leftValueShouldIdempotentlyBe InvalidDirectory
   }
   it should "return the quota and the used size" in {
-    val Quota(_, quotaBefore, usedBefore) = listQuota(rootCellFile).rightValue
-    val newFile = new File(rootCellFile, randomFile)
-    val fileSize = 10.kibibytes
-    val outputStream = new FileOutputStream(newFile)
-    val data = Array.ofDim[Byte](fileSize.toBytes.toInt)
-    Random.nextBytes(data)
-    outputStream.write(data)
-    outputStream.close()
-    // This test is affected by some other test
-    // TODO create a partitition dedicated to this test
-    // TODO https://github.com/sbt/sbt/issues/882
+    listQuota(rootCellFile).run().flatMap {
+      case Left(ec) => fail("listQuota should return root cell file quota")
+      case Right(Quota(_, quotaBefore, usedBefore)) =>
+        val newFile = new File(rootCellFile, randomFile)
+        val fileSize = 10.kibibytes
+        val outputStream = new FileOutputStream(newFile)
+        val data = Array.ofDim[Byte](fileSize.toBytes.toInt)
+        Random.nextBytes(data)
+        outputStream.write(data)
+        outputStream.close()
+        // This test is affected by some other test
+        // TODO create a partitition dedicated to this test
+        // TODO https://github.com/sbt/sbt/issues/882
 
-    listQuota(rootCellFile).idempotentRightValue { case Quota(_, quota, used) =>
-      quota.toKibibytes.toInt shouldBe quotaBefore.toKibibytes.toInt
-      used.toKibibytes.toInt shouldBe ((usedBefore + fileSize).toKibibytes.toInt +- 1)
+        listQuota(rootCellFile).idempotentRightValue { case Quota(_, quota, used) =>
+          quota.toKibibytes.toInt shouldBe quotaBefore.toKibibytes.toInt
+          used.toKibibytes.toInt shouldBe ((usedBefore + fileSize).toKibibytes.toInt +- 1)
+        }
     }
   }
 
@@ -44,11 +50,18 @@ class QuotaSpec extends FlatSpec with TestUtils with Matchers{
   }
 
   it should "update the quota to the requested value" in {
-    val Quota(_, quotaBefore, _) = listQuota(rootCellFile).rightValue
+    listQuota(rootCellFile).run().flatMap {
+      case Left(ec) => fail("listQuota should return root cell file quota")
+      case Right(Quota(_, quotaBefore, usedBefore)) =>
+        val newQuota = quotaBefore + 200.kibibytes
+        setQuota(rootCellFile, newQuota).rightValueShouldIdempotentlyBeUnit()
 
-    val newQuota = quotaBefore + 200.kibibytes
-    setQuota(rootCellFile, newQuota).rightValueShouldIdempotentlyBeUnit()
-
-    listQuota(rootCellFile).rightValue.quota shouldBe newQuota
+        listQuota(rootCellFile).run().map {
+          case Left(ec) => fail()
+          case Right(Quota(_, currentQuota, currentUsed)) =>
+            currentQuota shouldBe newQuota
+        }
+    }
   }
+
 }

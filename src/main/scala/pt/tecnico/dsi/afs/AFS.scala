@@ -528,6 +528,8 @@ class AFS(val settings: Settings = new Settings()) extends LazyLogging {
       .addWhen(nonExistingVolume)
       .when("Released volume .+ successfully".r)
         .returning(Right(()))
+      .when("vldb entry is already locked".r)
+        .returning(Left(VLDBAlreadyLocked))
       .addWhen(unknownError)
     e
   }

@@ -2,13 +2,13 @@ package pt.tecnico.dsi.afs
 
 import java.io.{File, FileOutputStream}
 
-import org.scalatest.FlatSpec
+import org.scalatest.{AsyncFlatSpec, FlatSpec}
 import squants.information.InformationConversions._
 
 /**
   *
   */
-class VolumeSpec extends FlatSpec with TestUtils {
+class VolumeSpec extends AsyncFlatSpec with TestUtils {
   val afs = new AFS()
 
   import afs._
@@ -21,7 +21,7 @@ class VolumeSpec extends FlatSpec with TestUtils {
   val invalidVolumeName = "testt"
 
   "createVolume" should "create a volume successfully" in {
-    createVolume(server, partition, volumeName, 5.mebibytes).rightValue.shouldBe(())
+    createVolume(server, partition, volumeName, 5.mebibytes).rightValueShouldBeUnit()
   }
   it should "return Host Not Found when server does not exist" in {
     createVolume(invalidServer, partition, volumeName, 5.mebibytes).leftValueShouldIdempotentlyBe(HostNotFound)
@@ -48,8 +48,12 @@ class VolumeSpec extends FlatSpec with TestUtils {
   }
 
   "addSite" should "create a replication site for the given volume successfully" in {
-    createVolume(server, partition, volumeName, 5.mebibytes).rightValue.shouldBe(())
-    addSite(server, partition, volumeName).rightValueShouldIdempotentlyBeUnit()
+    createVolume(server, partition, volumeName, 5.mebibytes).rightValueShouldBeUnit().flatMap {
+      case _ =>
+        addSite(server, partition, volumeName).rightValueShouldBeUnit().map {
+          case future => future
+        }
+    }
   }
   it should "return error when the volumeName read/write does not exist" in {
     addSite(server, partition, invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
@@ -62,28 +66,28 @@ class VolumeSpec extends FlatSpec with TestUtils {
   }
 
   "releaseVolume" should "release volume normally" in {
-    releaseVolume(volumeName).rightValueShouldIdempotentlyBeUnit()
+    releaseVolume(volumeName).rightValueShouldBeUnit()
   }
   it should "return error when volume does not exist" in {
     releaseVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
 
   "examineVolume" should "check that volume is working" in {
-    examineVolume(volumeName).rightValueShouldIdempotentlyBe(())
+    examineVolume(volumeName).rightValueShouldBe(())
   }
   it should "return error when volume does not exist" in {
     examineVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
 
   "volumeExist" should "return success idempotently when volume exists" in {
-    volumeExists(volumeName, server).rightValue.shouldBe(())
+    volumeExists(volumeName, server).rightValueShouldBeUnit()
   }
   it should "return error when volume does not exist" in {
     volumeExists(invalidVolumeName, server).leftValueShouldIdempotentlyBe(NonExistingVolume)
   }
 
   "backupVolume" should "return success when backup volume is successfully created" in {
-    backupVolume(volumeName).rightValueShouldIdempotentlyBeUnit()
+    backupVolume(volumeName).rightValueShouldBeUnit()
   }
   it should "return error when the target volume does not exist" in {
     backupVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)

@@ -26,6 +26,7 @@ case object FileAlreadyExists extends ErrorCase
 // vos
 case object ReadOnlyPartitionAlreadyExists extends ErrorCase
 case object NonExistingVolume extends ErrorCase
+case object VLDBAlreadyLocked extends ErrorCase
 
 object UnknownError {
   def apply(message: String): UnknownError = new UnknownError(Some(new Exception(message)))
