@@ -2,10 +2,10 @@ package pt.tecnico.dsi.afs
 
 import java.io.File
 
-import org.scalatest.FlatSpec
+import org.scalatest.{AsyncFlatSpec, FlatSpec}
 import squants.information.InformationConversions._
 
-class MountSpec extends FlatSpec with TestUtils {
+class MountSpec extends AsyncFlatSpec with TestUtils {
   val afs = new AFS()
   import afs._
 
@@ -50,8 +50,7 @@ class MountSpec extends FlatSpec with TestUtils {
   }
 
   "makeMount" should "mount directory successfully" in {
-    createVolume(server, partition, newVolumeName1, 5.mebibytes) rightValueShouldBeUnit()
-
+    createVolume(server, partition, newVolumeName1, 5.mebibytes)
     makeMount(validNewMountPoint1, newVolumeName1) rightValueShouldIdempotentlyBeUnit()
   }
   it should "return error when the mount point directory already exists" in {
@@ -59,7 +58,7 @@ class MountSpec extends FlatSpec with TestUtils {
     makeMount(validNewMountPoint2, newVolumeName1) leftValueShouldIdempotentlyBe FileAlreadyExists
   }
   it should "return success when the mount point exists but for a different volume" in {
-    createVolume(server, partition, newVolumeName2, 5.mebibytes) rightValueShouldBeUnit()
+    createVolume(server, partition, newVolumeName2, 5.mebibytes)
     makeMount(validNewMountPoint1, newVolumeName2) rightValueShouldIdempotentlyBeUnit()
   }
   it should "return error when volume does not exist" in {
@@ -69,7 +68,7 @@ class MountSpec extends FlatSpec with TestUtils {
   "removeMount" should "remove mount successfully" in {
     removeMount(validNewMountPoint1) rightValueShouldBeUnit()
 
-    listMount(validNewMountPoint1).leftValue.shouldBe(InvalidDirectory)
+    listMount(validNewMountPoint1).leftValueShouldIdempotentlyBe(InvalidDirectory)
   }
   // TODO check other cases
 

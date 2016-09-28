@@ -1,8 +1,8 @@
 package pt.tecnico.dsi.afs
 
-import org.scalatest.FlatSpec
+import org.scalatest.{AsyncFlatSpec}
 
-class PTSSpec extends FlatSpec with TestUtils {
+class PTSSpec extends AsyncFlatSpec with TestUtils {
   val afs = new AFS()
   import afs._
 
@@ -22,40 +22,40 @@ class PTSSpec extends FlatSpec with TestUtils {
 
 
   "getUserId" should "return user id" in {
-    getGroupOrUserId(existingUsername1).rightValue shouldBe existingId1
+    getGroupOrUserId(existingUsername1).rightValueShouldIdempotentlyBe(existingId1)
   }
   it should "return error when the user name does not exist" in {
-    getGroupOrUserId(unknownUsername).leftValue shouldBe UnknownUserName
+    getGroupOrUserId(unknownUsername).leftValueShouldIdempotentlyBe(UnknownUserName)
   }
 
   "getUserName" should "return username" in {
-    getGroupOrUserName(existingId1).rightValue shouldBe existingUsername1
+    getGroupOrUserName(existingId1).rightValueShouldBe(existingUsername1)
   }
   it should "return error when the user id does not exist" in {
-    getGroupOrUserName(unknownId).leftValue shouldBe UnknownUserOrGroupId
+    getGroupOrUserName(unknownId).leftValueShouldBe(UnknownUserOrGroupId)
   }
 
   "createUser" should "create user successfully" in {
     createUser(username1, userId1).rightValueShouldBeUnit()
   }
   it should "return error when the username in use" in {
-    createUser(username1, userId3).leftValue shouldBe UserNameAlreadyTaken
+    createUser(username1, userId3).leftValueShouldBe(UserNameAlreadyTaken)
   }
   it should "return error when the AFS's id is already in use" in {
-    createUser(username2, userId1).leftValue shouldBe AFSIdAlreadyTaken
+    createUser(username2, userId1).leftValueShouldBe(AFSIdAlreadyTaken)
   }
   it should "return error when the name is badly formed" in {
-    createUser(invalidUsername, userId2).leftValue shouldBe BadlyFormedUserName
+    createUser(invalidUsername, userId2).leftValueShouldBe(BadlyFormedUserName)
   }
 
   "createGroup" should "create group successfully" in {
-    createGroup(group1, username1).rightValue // we do not care for the value as least it is a right value
+    createGroup(group1, username1).rightValue(_ => succeed) // we do not care for the value as least it is a right value
   }
   it should "return error when the group name is already takes" in{
-    createGroup(group1, username1).leftValue shouldBe GroupNameAlreadyTaken
+    createGroup(group1, username1).leftValueShouldBe(GroupNameAlreadyTaken)
   }
   it should "return error when the owner does not exist" in{
-    createGroup(group1, unknownUsername).leftValue shouldBe UnknownUserName
+    createGroup(group1, unknownUsername).leftValueShouldBe(UnknownUserName)
   }
 
   "deleteUserOrGroup" should "remove user or group successfully" in {
@@ -67,10 +67,10 @@ class PTSSpec extends FlatSpec with TestUtils {
     addUserToGroup(username1, group1).rightValueShouldIdempotentlyBeUnit()
   }
   it should "return error when user does not exist" in {
-    addUserToGroup(unknownUsername, group1).leftValue.shouldBe(InvalidUserOrGroupName)
+    addUserToGroup(unknownUsername, group1).leftValueShouldBe(InvalidUserOrGroupName)
   }
   it should "return error when group does not exist" in {
-    addUserToGroup(username1, unknownGroup).leftValue.shouldBe(InvalidUserOrGroupName)
+    addUserToGroup(username1, unknownGroup).leftValueShouldBe(InvalidUserOrGroupName)
   }
 
 
@@ -80,23 +80,21 @@ class PTSSpec extends FlatSpec with TestUtils {
 
 
   "membership" should "list groups of a user" in {
-    membership(existingUsername1).rightValue should contain only administratorsGroup
+    membership(existingUsername1).rightValueShouldBe(Set(administratorsGroup))
   }
   it should "list users of a group" in {
-    membership(administratorsGroup).rightValue should contain only existingUsername1
+    membership(administratorsGroup).rightValueShouldBe(Set(existingUsername1))
   }
 
   "listgroups" should "list groups and their properties" in {
     deleteUserOrGroup(group1).rightValueShouldBeUnit()
-    listGroups().rightValue should contain theSameElementsInOrderAs Seq(
+    listGroups().rightValueShouldBe(Seq(
       ("system:administrators",   -204, -204, -204),
       ("system:backup",           -205, -204, -204),
       ("system:anyuser",          -101, -204, -204),
       ("system:authuser",         -102, -204, -204),
       ("system:ptsviewers",       -203, -204, -204)
-    )
+    ))
   }
-
-
 
 }

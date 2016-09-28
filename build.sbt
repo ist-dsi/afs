@@ -29,7 +29,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging" % "3.4.0",
   "ch.qos.logback" % "logback-classic" % "1.1.7",
   //Testing
-  "org.scalatest" %% "scalatest" % "2.2.6" % "test",
+  "org.scalatest" %% "scalatest" % "3.0.0" % Test,
   //Configuration
   "com.typesafe" % "config" % "1.3.0",
   //Dimensions mainly information (KB, MB, etc)
@@ -38,7 +38,9 @@ libraryDependencies ++= Seq(
   "joda-time" % "joda-time" % "2.9.3",
   //See http://stackoverflow.com/questions/13856266/class-broken-error-with-joda-time-using-scala
   //as to why this library must be included
-  "org.joda" % "joda-convert" % "1.8.1"
+  "org.joda" % "joda-convert" % "1.8.1",
+
+  "pt.tecnico.dsi" %% "kadmin" % "4.5.0" % "test"
 )
 resolvers += Resolver.typesafeRepo("releases")
 

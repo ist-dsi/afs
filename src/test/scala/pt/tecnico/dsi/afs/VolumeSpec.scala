@@ -66,7 +66,7 @@ class VolumeSpec extends AsyncFlatSpec with TestUtils {
   }
 
   "releaseVolume" should "release volume normally" in {
-    releaseVolume(volumeName).rightValueShouldBeUnit()
+    releaseVolume(volumeName).rightValueShouldIdempotentlyBeUnit()
   }
   it should "return error when volume does not exist" in {
     releaseVolume(invalidVolumeName).leftValueShouldIdempotentlyBe(NonExistingVolume)

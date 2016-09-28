@@ -2,9 +2,9 @@ package pt.tecnico.dsi.afs
 
 import java.io.File
 
-import org.scalatest.FlatSpec
+import org.scalatest.{AsyncFlatSpec, FlatSpec}
 
-class ACLSpec extends FlatSpec with TestUtils {
+class ACLSpec extends AsyncFlatSpec with TestUtils {
   val afs = new AFS()
   import afs._
   val username = "afsadmin.admin"
@@ -17,21 +17,21 @@ class ACLSpec extends FlatSpec with TestUtils {
 
 
   "listACL" should "list ACL successfully" in {
-    listACL(rwAfsDir).value shouldBe Right(defaultPermissions)
+    listACL(rwAfsDir).rightValueShouldIdempotentlyBe(defaultPermissions)
   }
   it should "list Negative Rights successfully" in {
     val newPermission = username -> (Read + Lookup)
     val newPermissions = (defaultPermissions._1, defaultPermissions._2 + newPermission)
 
     setACL(rwAfsDir, Map(newPermission), negative = true).rightValueShouldBeUnit()
-    listACL(rwAfsDir).rightValue shouldBe newPermissions
+    listACL(rwAfsDir).rightValueShouldIdempotentlyBe(newPermissions)
 
     // undo changes to permissions
     setACL(rwAfsDir, Map(username -> NoPermissions), negative = true).rightValueShouldBeUnit()
-    listACL(rwAfsDir).rightValue shouldBe defaultPermissions
+    listACL(rwAfsDir).rightValueShouldIdempotentlyBe(defaultPermissions)
   }
   it should "return invalidDirectory when the directory does not exist" in {
-    listACL(invalidDir).leftValue.shouldBe(InvalidDirectory)
+    listACL(invalidDir).leftValueShouldIdempotentlyBe(InvalidDirectory)
   }
 
   "setACL" should "set ACL successfully" in {
@@ -39,7 +39,7 @@ class ACLSpec extends FlatSpec with TestUtils {
     val newPermissions = (defaultPermissions._1 + newPermission, defaultPermissions._2)
 
     setACL(rwAfsDir, Map(newPermission)).rightValueShouldBeUnit()
-    listACL(rwAfsDir).rightValue shouldBe newPermissions
+    listACL(rwAfsDir).rightValueShouldIdempotentlyBe(newPermissions)
   }
 
 }
